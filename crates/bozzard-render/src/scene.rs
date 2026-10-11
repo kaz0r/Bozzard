@@ -1,6 +1,6 @@
 use crate::Gpu;
 use anyhow::{Context, Result, ensure};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wgpu::util::DeviceExt;
 mod temporal_settings;

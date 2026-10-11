@@ -1,0 +1,10 @@
+// The ship steams away from the island, rolling gently. island::ship_position is its
+// course; the smoke script follows the same course to leave its trail behind.
+import "island-lib" as island;
+
+fn on_update(me, dt) {
+    let t = get_scene_variable("world_time");
+    let p = island::ship_position(t);
+    set_position(me, [p[0], p[1] + 0.25 * sin(t * 0.7), p[2]]);
+    set_rotation(me, [0.6 * sin(t * 0.53), island::ship_yaw(), 1.3 * sin(t * 0.71)]);
+}

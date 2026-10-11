@@ -57,6 +57,11 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
         ensure_script(size.is_finite() && size > 0.0, || "camera size must be positive and finite".into())?;
         Command::CameraSize { target: state.target_of(&target)?, size }
     });
+    write!("set_camera_fov", (target: ImmutableString, degrees: f32), |state| {
+        ensure_script(degrees.is_finite() && (1.0..179.0).contains(&degrees),
+            || "camera field of view must be 1..179 degrees".into())?;
+        Command::CameraFov { target: state.target_of(&target)?, degrees }
+    });
     read!("network_active", (), |state| Ok(Dynamic::from(
         state.network.active
     )));
@@ -173,6 +178,13 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
             scale: view.scale,
         });
         Ok(Dynamic::from_array(array_of(direction.to_array())))
+    });
+    read!("get_ui_value", (target: ImmutableString), |state| {
+        let (value, _) = state
+            .view(&target)?
+            .ui_value
+            .ok_or_else(|| fail(format!("'{target}' has no UI Widget")))?;
+        Ok(Dynamic::from(value))
     });
     read!("get_text", (target: ImmutableString), |state| {
         let text = state
@@ -616,6 +628,19 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
             Command::SceneLight { ambient, color, intensity }
         });
     }
+    write!("set_sun_direction", (direction: Array), |_state| {
+        let direction = vector_of(direction)?;
+        let length = Vec3::from(direction).length_squared();
+        ensure_script(length.is_finite() && length > 1e-12,
+            || "sun direction must be finite and nonzero".into())?;
+        Command::SunDirection(direction)
+    });
+    write!("set_sun_shadows", (enabled: bool), |_state| Command::SunShadows(enabled));
+    write!("set_shadow_distance", (distance: f32), |_state| {
+        ensure_script(distance.is_finite() && (0.0..=100_000.).contains(&distance),
+            || "shadow distance must be in 0..100000; 0 fits every caster".into())?;
+        Command::ShadowDistance(distance)
+    });
     write!("set_environment", (zenith: Array, horizon: Array, ground: Array, intensity: f32), |_state| {
         let zenith = vector_of(zenith)?;
         let horizon = vector_of(horizon)?;
@@ -640,6 +665,11 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
     write!("set_ui_text", (target: ImmutableString, text: ImmutableString), |state| {
         ensure_script(text.len() <= 4096, || "UI text exceeds 4096 UTF-8 bytes".into())?;
         Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Text(text.to_string()) }
+    });
+    write!("set_ui_value", (target: ImmutableString, value: f32), |state| {
+        let target = state.target_of(&target)?;
+        state.mirror_ui_value(&target, value)?;
+        Command::Ui { target, control: middleware::ui::Control::Value(value) }
     });
     write!("set_ui_visible", (target: ImmutableString, visible: bool), |state| {
         Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Visible(visible) }

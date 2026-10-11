@@ -37,6 +37,15 @@ fn lighting_defaults_roundtrip_and_validation() {
         invalid.lighting.shadow_normal_bias = bias;
         assert!(invalid.validate().is_err());
     }
+    // Zero (every caster) is the default and stays out of saved scenes.
+    assert!(!scene.to_json().unwrap().contains("shadow_distance"));
+    for distance in [-1., f32::NAN, f32::INFINITY, 100001.] {
+        let mut invalid = scene.clone();
+        invalid.lighting.shadow_distance = distance;
+        assert!(invalid.validate().is_err());
+    }
+    scene.lighting.shadow_distance = 45.;
+    assert!(scene.to_json().unwrap().contains("shadow_distance"));
     scene.lighting.shadows = false;
     scene.lighting.shadow_resolution = 4096;
     scene.lighting.shadow_bias = 0.02;
@@ -203,6 +212,109 @@ fn runtime_lighting_overrides_preserve_authored_settings_and_restore_daylight() 
 }
 
 #[test]
+fn scripts_move_the_sun_and_set_its_shadows_without_editing_the_document() {
+    use bozzard_scene::{GameplayInput, Layer};
+    let (mut instance, mut world) = scripted_lighting(
+        r#"
+        fn on_update(me, dt) {
+            let t = elapsed_time();
+            set_sun_direction([cos(t), sin(t), 0.25]);
+            set_shadow_distance(48.0);
+            if input_pressed("S") { set_sun_shadows(false); }
+        }
+    "#,
+    );
+    let authored = instance.document().clone();
+    instance
+        .step_scripts(&mut world, 0.5, GameplayInput::default())
+        .unwrap();
+    let morning = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert!(morning.lighting.shadows);
+    assert_eq!(morning.lighting.shadow_distance, 48.);
+    assert_eq!(
+        morning.lighting.sun_direction,
+        [0.5_f32.cos(), 0.5_f32.sin(), 0.25]
+    );
+    assert_eq!(
+        morning.lighting.sun_intensity, authored.lighting.sun_intensity,
+        "moving the sun keeps its color and intensity"
+    );
+    instance
+        .step_scripts(
+            &mut world,
+            0.5,
+            GameplayInput {
+                keys: bozzard_scene::keys::bit("S"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let noon = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert_eq!(
+        noon.lighting.sun_direction,
+        [1_f32.cos(), 1_f32.sin(), 0.25]
+    );
+    assert!(!noon.lighting.shadows);
+    assert_eq!(instance.document(), &authored);
+}
+
+#[test]
+fn scripts_set_a_perspective_camera_field_of_view() {
+    use bozzard_scene::{Camera, GameplayInput};
+    let scene = Scene::from_json(
+        r#"{"version":1,"name":"Lens","views":{"3d":"eye"},
+        "assets":{"script":{"kind":"script","path":"lens.rs"}},
+        "objects":[{"id":"eye","name":"Eye",
+            "transform":{"translation":[0,0,3],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+            "camera":{"projection":"perspective","vertical_fov_degrees":60,"near":0.1,"far":100},
+            "script_manager":{"scripts":[{"enabled":true,"script":"script"}]}}]}"#,
+    )
+    .unwrap();
+    let mut world = bozzard_ecs::World::default();
+    let mut instance = scene.spawn(&mut world).unwrap();
+    instance
+        .register_script(
+            "script".into(),
+            r#"fn on_update(me, dt) { set_camera_fov(me, 82.5); }"#.into(),
+        )
+        .unwrap();
+    instance
+        .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+        .unwrap();
+    assert_eq!(
+        *world
+            .get::<Camera>(instance.entity("eye").unwrap())
+            .unwrap(),
+        Camera::Perspective {
+            vertical_fov_degrees: 82.5,
+            near: 0.1,
+            far: 100.
+        }
+    );
+    for call in ["set_camera_fov(me, 0.5)", "set_camera_fov(me, 179.0)"] {
+        instance
+            .register_script(
+                "script".into(),
+                format!("fn on_update(me, dt) {{ {call}; }}"),
+            )
+            .unwrap();
+        assert!(
+            instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .is_err(),
+            "{call}"
+        );
+    }
+    // Orthographic cameras keep set_camera_size.
+    let (mut instance, mut world) =
+        scripted_lighting(r#"fn on_update(me, dt) { set_camera_fov(me, 70.0); }"#);
+    let error = instance
+        .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("perspective"), "{error:#}");
+}
+
+#[test]
 fn invalid_runtime_lighting_is_rejected_before_application() {
     use bozzard_scene::{GameplayInput, Layer};
     for call in [
@@ -214,6 +326,10 @@ fn invalid_runtime_lighting_is_rejected_before_application() {
         "set_fog([0.5, 1.2, 0.5], 0.01)",
         "set_fog([0.5, 0.5, 0.5], -0.01)",
         "set_fog([0.5, 0.5, 0.5], 1001.0)",
+        "set_sun_direction([0.0, 0.0, 0.0])",
+        "set_sun_direction([1.0, 2.0])",
+        "set_shadow_distance(-1.0)",
+        "set_shadow_distance(100001.0)",
     ] {
         let (mut instance, mut world) =
             scripted_lighting(&format!("fn on_start(me) {{ {call}; }}"));

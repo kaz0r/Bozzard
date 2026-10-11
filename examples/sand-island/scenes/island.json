@@ -1,0 +1,12889 @@
+{
+ "version": 1,
+ "name": "Sand Island",
+ "views": {
+  "3d": "camera"
+ },
+ "assets": {
+  "cloud-0": {
+   "kind": "mesh",
+   "path": "assets/cloud-0.gltf"
+  },
+  "cloud-1": {
+   "kind": "mesh",
+   "path": "assets/cloud-1.gltf"
+  },
+  "cloud-10": {
+   "kind": "mesh",
+   "path": "assets/cloud-10.gltf"
+  },
+  "cloud-11": {
+   "kind": "mesh",
+   "path": "assets/cloud-11.gltf"
+  },
+  "cloud-12": {
+   "kind": "mesh",
+   "path": "assets/cloud-12.gltf"
+  },
+  "cloud-13": {
+   "kind": "mesh",
+   "path": "assets/cloud-13.gltf"
+  },
+  "cloud-14": {
+   "kind": "mesh",
+   "path": "assets/cloud-14.gltf"
+  },
+  "cloud-15": {
+   "kind": "mesh",
+   "path": "assets/cloud-15.gltf"
+  },
+  "cloud-2": {
+   "kind": "mesh",
+   "path": "assets/cloud-2.gltf"
+  },
+  "cloud-3": {
+   "kind": "mesh",
+   "path": "assets/cloud-3.gltf"
+  },
+  "cloud-4": {
+   "kind": "mesh",
+   "path": "assets/cloud-4.gltf"
+  },
+  "cloud-5": {
+   "kind": "mesh",
+   "path": "assets/cloud-5.gltf"
+  },
+  "cloud-6": {
+   "kind": "mesh",
+   "path": "assets/cloud-6.gltf"
+  },
+  "cloud-7": {
+   "kind": "mesh",
+   "path": "assets/cloud-7.gltf"
+  },
+  "cloud-8": {
+   "kind": "mesh",
+   "path": "assets/cloud-8.gltf"
+  },
+  "cloud-9": {
+   "kind": "mesh",
+   "path": "assets/cloud-9.gltf"
+  },
+  "cloud-script": {
+   "kind": "script",
+   "path": "scripts/cloud.rhai"
+  },
+  "coconut": {
+   "kind": "mesh",
+   "path": "assets/coconut.gltf"
+  },
+  "driftwood-0": {
+   "kind": "mesh",
+   "path": "assets/driftwood-0.gltf"
+  },
+  "driftwood-1": {
+   "kind": "mesh",
+   "path": "assets/driftwood-1.gltf"
+  },
+  "driftwood-2": {
+   "kind": "mesh",
+   "path": "assets/driftwood-2.gltf"
+  },
+  "game-script": {
+   "kind": "script",
+   "path": "scripts/game.rhai"
+  },
+  "hud-script": {
+   "kind": "script",
+   "path": "scripts/hud.rhai"
+  },
+  "icons": {
+   "kind": "image",
+   "path": "assets/icons.png"
+  },
+  "island": {
+   "kind": "mesh",
+   "path": "assets/island.gltf"
+  },
+  "island-lib": {
+   "kind": "script",
+   "path": "scripts/island.rhai"
+  },
+  "lighthouse": {
+   "kind": "mesh",
+   "path": "assets/lighthouse.gltf"
+  },
+  "lighthouse-beam": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-beam.gltf"
+  },
+  "lighthouse-glass": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-glass.gltf"
+  },
+  "lighthouse-lamp": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-lamp.gltf"
+  },
+  "lighthouse-windows": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-windows.gltf"
+  },
+  "moon": {
+   "kind": "mesh",
+   "path": "assets/moon.gltf"
+  },
+  "ocean-alpha": {
+   "kind": "image",
+   "path": "assets/ocean-alpha.png"
+  },
+  "palm-crown": {
+   "kind": "mesh",
+   "path": "assets/palm-crown.gltf"
+  },
+  "palm-script": {
+   "kind": "script",
+   "path": "scripts/palm.rhai"
+  },
+  "palm-trunk": {
+   "kind": "mesh",
+   "path": "assets/palm-trunk.gltf"
+  },
+  "player-script": {
+   "kind": "script",
+   "path": "scripts/player.rhai"
+  },
+  "raft-ghost-1": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-1.gltf"
+  },
+  "raft-ghost-2": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-2.gltf"
+  },
+  "raft-ghost-3": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-3.gltf"
+  },
+  "raft-ghost-4": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-4.gltf"
+  },
+  "raft-ghost-5": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-5.gltf"
+  },
+  "raft-site": {
+   "kind": "mesh",
+   "path": "assets/raft-site.gltf"
+  },
+  "raft-stage-1": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-1.gltf"
+  },
+  "raft-stage-2": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-2.gltf"
+  },
+  "raft-stage-3": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-3.gltf"
+  },
+  "raft-stage-4": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-4.gltf"
+  },
+  "raft-stage-5": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-5.gltf"
+  },
+  "ship": {
+   "kind": "mesh",
+   "path": "assets/ship.gltf"
+  },
+  "ship-lights": {
+   "kind": "mesh",
+   "path": "assets/ship-lights.gltf"
+  },
+  "ship-script": {
+   "kind": "script",
+   "path": "scripts/ship.rhai"
+  },
+  "smoke-puff-0": {
+   "kind": "mesh",
+   "path": "assets/smoke-puff-0.gltf"
+  },
+  "smoke-puff-1": {
+   "kind": "mesh",
+   "path": "assets/smoke-puff-1.gltf"
+  },
+  "smoke-puff-2": {
+   "kind": "mesh",
+   "path": "assets/smoke-puff-2.gltf"
+  },
+  "smoke-script": {
+   "kind": "script",
+   "path": "scripts/smoke.rhai"
+  },
+  "sun": {
+   "kind": "mesh",
+   "path": "assets/sun.gltf"
+  },
+  "sun-low": {
+   "kind": "mesh",
+   "path": "assets/sun-low.gltf"
+  },
+  "world-script": {
+   "kind": "script",
+   "path": "scripts/world.rhai"
+  }
+ },
+ "blackboard": {
+  "mode": {
+   "scalar": {
+    "text": "title"
+   }
+  },
+  "control": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "camp_open": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "menu_open": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "wood": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "fronds": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "rope": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "coconuts": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "sail": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "paddle": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "energy": {
+   "scalar": {
+    "number": 85.0
+   }
+  },
+  "raft_stage": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "lighthouse_seen": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "prompt": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "pickup": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "pickup_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "toast": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "toast_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "fade_kind": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "fade_start": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "launch_start": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "launch_armed": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "start_time": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "shake_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "time_of_day": {
+   "scalar": {
+    "number": 8.0
+   }
+  },
+  "clock": {
+   "scalar": {
+    "number": 28800.0
+   }
+  },
+  "clock_fraction": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "day": {
+   "scalar": {
+    "number": 1.0
+   }
+  },
+  "world_time": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "daylight": {
+   "scalar": {
+    "number": 1.0
+   }
+  },
+  "sensitivity": {
+   "scalar": {
+    "number": 1.0
+   }
+  },
+  "invert_y": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "bobbing": {
+   "scalar": {
+    "bool": true
+   }
+  },
+  "fov": {
+   "scalar": {
+    "number": 75.0
+   }
+  },
+  "view_distance": {
+   "scalar": {
+    "number": 2.0
+   }
+  },
+  "shadows": {
+   "scalar": {
+    "bool": true
+   }
+  },
+  "clouds": {
+   "scalar": {
+    "bool": true
+   }
+  },
+  "bloom": {
+   "scalar": {
+    "bool": true
+   }
+  }
+ },
+ "lighting": {
+  "shadows": true,
+  "shadow_resolution": 2048,
+  "shadow_bias": 0.004,
+  "shadow_normal_bias": 0.02,
+  "shadow_distance": 32,
+  "sun_direction": [
+   0.86603,
+   0.45654,
+   0.20388
+  ],
+  "sun_color": [
+   1.0,
+   0.95,
+   0.86
+  ],
+  "sun_intensity": 2.4,
+  "ambient_color": [
+   0.86,
+   0.93,
+   1.0
+  ],
+  "ambient_intensity": 0.08
+ },
+ "environment": {
+  "zenith": [
+   0.07,
+   0.32,
+   0.95
+  ],
+  "horizon": [
+   0.62,
+   0.84,
+   1.0
+  ],
+  "ground": [
+   0.03434,
+   0.11697,
+   0.19462
+  ],
+  "intensity": 0.55,
+  "star_intensity": 0,
+  "background": true
+ },
+ "fog": {
+  "enabled": true,
+  "color": [
+   0.341,
+   0.462,
+   0.55
+  ],
+  "distance_density": 0.0006,
+  "start_distance": 180,
+  "height_density": 0,
+  "base_height": 0,
+  "height_falloff": 1
+ },
+ "display": {
+  "exposure_ev": 0,
+  "tone_mapping": true,
+  "tone_mapper": "filmic",
+  "bloom": {
+   "enabled": true,
+   "intensity": 0.14,
+   "threshold": 1.0,
+   "scatter": 0.7,
+   "anamorphic": 0
+  },
+  "ambient_occlusion": {
+   "enabled": true,
+   "intensity": 0.8,
+   "radius": 0.6,
+   "bias": 0.025
+  },
+  "temporal_aa": {
+   "enabled": true
+  }
+ },
+ "objects": [
+  {
+   "id": "camera",
+   "name": "Camera / the castaway's eyes",
+   "transform": {
+    "translation": [
+     -5.5,
+     3.17,
+     7.0
+    ],
+    "rotation_degrees": [
+     2,
+     -36.8699,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "camera": {
+    "projection": "perspective",
+    "vertical_fov_degrees": 75,
+    "near": 0.15,
+    "far": 12000
+   }
+  },
+  {
+   "id": "game",
+   "name": "Game / gathering, camp, raft, lighthouse",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "blackboard": {
+    "wood_on": {
+     "list": {
+      "element": "bool",
+      "capacity": 6,
+      "values": [
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "bool": false
+       }
+      ]
+     }
+    },
+    "nut_on": {
+     "list": {
+      "element": "bool",
+      "capacity": 4,
+      "values": [
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "bool": false
+       }
+      ]
+     }
+    },
+    "palm_stock": {
+     "scalar": {
+      "number": 10.0
+     }
+    },
+    "palm_next": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "wood_next": {
+     "scalar": {
+      "number": 45.0
+     }
+    },
+    "tutorial": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "tutorial_time": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "look_time": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "cursor": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "warned": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "fade_applied": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "gathered": {
+     "scalar": {
+      "number": 0.0
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "game-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "player",
+   "name": "Player / WASD, mouse, Shift, Space",
+   "transform": {
+    "translation": [
+     -5.5,
+     1.55,
+     7.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "blackboard": {
+    "px": {
+     "scalar": {
+      "number": -5.5
+     }
+    },
+    "py": {
+     "scalar": {
+      "number": 1.550004813293774
+     }
+    },
+    "pz": {
+     "scalar": {
+      "number": 7.0
+     }
+    },
+    "vx": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "vy": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "vz": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "yaw": {
+     "scalar": {
+      "number": -36.87
+     }
+    },
+    "pitch": {
+     "scalar": {
+      "number": 2.0
+     }
+    },
+    "grounded": {
+     "scalar": {
+      "bool": true
+     }
+    },
+    "dip": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "bob": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "bob_amount": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "fov_now": {
+     "scalar": {
+      "number": 75.0
+     }
+    },
+    "aboard": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "raft_x": {
+     "scalar": {
+      "number": -8.868
+     }
+    },
+    "raft_z": {
+     "scalar": {
+      "number": 8.517
+     }
+    },
+    "raft_yaw": {
+     "scalar": {
+      "number": 133.843
+     }
+    },
+    "raft_speed": {
+     "scalar": {
+      "number": 0.0
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "player-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "world",
+   "name": "World / day and night, 1 s = 8 game s",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "blackboard": {
+    "low_sun": {
+     "scalar": {
+      "bool": false
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "world-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-island",
+   "name": "Island / sand and seafloor",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "island"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "a-palm",
+   "name": "Palm tree",
+   "transform": {
+    "translation": [
+     3.0,
+     2.25,
+     -2.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "a-palm-trunk",
+   "name": "Palm trunk",
+   "parent": "a-palm",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "palm-trunk"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "a-palm-crown",
+   "name": "Palm crown / sways, shakes",
+   "parent": "a-palm",
+   "transform": {
+    "translation": [
+     1.25,
+     7.0,
+     1.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "palm-crown"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "palm-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-raft-site",
+   "name": "Raft site / stakes on the south-west beach",
+   "transform": {
+    "translation": [
+     -8.868,
+     0.65,
+     8.517
+    ],
+    "rotation_degrees": [
+     -14.458,
+     133.843,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-site"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "raft",
+   "name": "Raft / built in five stages",
+   "transform": {
+    "translation": [
+     -8.868,
+     0.65,
+     8.517
+    ],
+    "rotation_degrees": [
+     -14.458,
+     133.843,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "raft-stage-1",
+   "name": "Raft stage 1",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-1",
+   "name": "Raft stage 1 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-2",
+   "name": "Raft stage 2",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-2",
+   "name": "Raft stage 2 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-3",
+   "name": "Raft stage 3",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-3"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-3",
+   "name": "Raft stage 3 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-3"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-4",
+   "name": "Raft stage 4",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-4"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-4",
+   "name": "Raft stage 4 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-4"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-5",
+   "name": "Raft stage 5",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-5"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-5",
+   "name": "Raft stage 5 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-5"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-0",
+   "name": "Driftwood 1",
+   "transform": {
+    "translation": [
+     14.556,
+     0.25,
+     8.506
+    ],
+    "rotation_degrees": [
+     0,
+     224.0848,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-0"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-1",
+   "name": "Driftwood 2",
+   "transform": {
+    "translation": [
+     -15.147,
+     0.25,
+     1.511
+    ],
+    "rotation_degrees": [
+     0,
+     255.6795,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-2",
+   "name": "Driftwood 3",
+   "transform": {
+    "translation": [
+     -6.653,
+     0.25,
+     -15.158
+    ],
+    "rotation_degrees": [
+     0,
+     170.5253,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-3",
+   "name": "Driftwood 4",
+   "transform": {
+    "translation": [
+     12.915,
+     0.25,
+     -7.366
+    ],
+    "rotation_degrees": [
+     0,
+     206.3461,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-0"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-4",
+   "name": "Driftwood 5",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     306.3371,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-5",
+   "name": "Driftwood 6",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     32.2351,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-0",
+   "name": "Coconut 1",
+   "transform": {
+    "translation": [
+     4.6,
+     2.0,
+     -3.1
+    ],
+    "rotation_degrees": [
+     0,
+     31.553,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-1",
+   "name": "Coconut 2",
+   "transform": {
+    "translation": [
+     1.7,
+     2.5,
+     -1.1
+    ],
+    "rotation_degrees": [
+     0,
+     16.0339,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-2",
+   "name": "Coconut 3",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     250.8358,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-3",
+   "name": "Coconut 4",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     308.8604,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "b-ship",
+   "name": "Ship / steaming away",
+   "transform": {
+    "translation": [
+     810.0,
+     0,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     -76.8699,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "ship"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "ship-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ship-lights",
+   "name": "Ship lights / night only",
+   "parent": "b-ship",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "ship-lights"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "b-lighthouse",
+   "name": "Lighthouse islet / the way home",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "lighthouse-windows",
+   "name": "Lighthouse cottage windows / night only",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-windows"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "c-ocean",
+   "name": "Ocean / shader graph waves",
+   "transform": {
+    "translation": [
+     0,
+     -0.05,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     20000,
+     0.1,
+     20000
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": "cube",
+    "texture": {
+     "asset": "ocean-alpha"
+    },
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false,
+    "roughness": 0.05,
+    "metallic": 0.0
+   },
+   "shader_graph": {
+    "version": 1,
+    "name": "Ocean",
+    "nodes": [
+     {
+      "id": 1,
+      "position": [
+       1400,
+       0.0
+      ],
+      "kind": "master",
+      "inputs": [
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       },
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.05
+       },
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       },
+       {
+        "float": 1.0
+       },
+       {
+        "vector": [
+         0.0,
+         1.0,
+         0.0
+        ]
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 2,
+      "position": [
+       -1200,
+       0
+      ],
+      "kind": "time",
+      "inputs": [],
+      "slot": "base_color"
+     },
+     {
+      "id": 3,
+      "position": [
+       -1400,
+       300
+      ],
+      "kind": "world_position",
+      "inputs": [],
+      "slot": "base_color"
+     },
+     {
+      "id": 4,
+      "position": [
+       -1200,
+       300
+      ],
+      "kind": "split",
+      "inputs": [
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 5,
+      "position": [
+       -1000,
+       0
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.21
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 6,
+      "position": [
+       -1000,
+       60
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.09
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 7,
+      "position": [
+       -800,
+       0
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 8,
+      "position": [
+       -1000,
+       120
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.05
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 9,
+      "position": [
+       -600,
+       0
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 10,
+      "position": [
+       -400,
+       0
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.5707963267948966
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 11,
+      "position": [
+       -200,
+       0
+      ],
+      "kind": "sine",
+      "inputs": [
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 12,
+      "position": [
+       0,
+       0
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.066
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 13,
+      "position": [
+       0,
+       60
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.028
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 14,
+      "position": [
+       -1000,
+       160
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.12
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 15,
+      "position": [
+       -1000,
+       220
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.27
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 16,
+      "position": [
+       -800,
+       160
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 17,
+      "position": [
+       -1000,
+       280
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.27
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 18,
+      "position": [
+       -600,
+       160
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 19,
+      "position": [
+       -400,
+       160
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 3.2707963267948967
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 20,
+      "position": [
+       -200,
+       160
+      ],
+      "kind": "sine",
+      "inputs": [
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 21,
+      "position": [
+       0,
+       160
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.025
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 22,
+      "position": [
+       0,
+       220
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.056
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 23,
+      "position": [
+       200,
+       160
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 24,
+      "position": [
+       200,
+       220
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 25,
+      "position": [
+       -1000,
+       320
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.55
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 26,
+      "position": [
+       -1000,
+       380
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.38
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 27,
+      "position": [
+       -800,
+       320
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 28,
+      "position": [
+       -1000,
+       440
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 2.1
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 29,
+      "position": [
+       -600,
+       320
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 30,
+      "position": [
+       -400,
+       320
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.9707963267948965
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 31,
+      "position": [
+       -200,
+       320
+      ],
+      "kind": "sine",
+      "inputs": [
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 32,
+      "position": [
+       0,
+       320
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.034
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 33,
+      "position": [
+       0,
+       380
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.024
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 34,
+      "position": [
+       200,
+       320
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 35,
+      "position": [
+       200,
+       380
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 36,
+      "position": [
+       -1000,
+       480
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.9
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 37,
+      "position": [
+       -1000,
+       540
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.7
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 38,
+      "position": [
+       -800,
+       480
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 39,
+      "position": [
+       -1000,
+       600
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 2.9
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 40,
+      "position": [
+       -600,
+       480
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 41,
+      "position": [
+       -400,
+       480
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 4.170796326794896
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 42,
+      "position": [
+       -200,
+       480
+      ],
+      "kind": "sine",
+      "inputs": [
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 43,
+      "position": [
+       0,
+       480
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.022
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 44,
+      "position": [
+       0,
+       540
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.017
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 45,
+      "position": [
+       200,
+       480
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 46,
+      "position": [
+       200,
+       540
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 47,
+      "position": [
+       -1000,
+       640
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.6
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 48,
+      "position": [
+       -1000,
+       700
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -1.1
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 49,
+      "position": [
+       -800,
+       640
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 50,
+      "position": [
+       -1000,
+       760
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 3.8
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 51,
+      "position": [
+       -600,
+       640
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 52,
+      "position": [
+       -400,
+       640
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 5.670796326794896
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 53,
+      "position": [
+       -200,
+       640
+      ],
+      "kind": "sine",
+      "inputs": [
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 54,
+      "position": [
+       0,
+       640
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": -0.016
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 55,
+      "position": [
+       0,
+       700
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.011
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 56,
+      "position": [
+       200,
+       640
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 57,
+      "position": [
+       200,
+       700
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 58,
+      "position": [
+       400,
+       300
+      ],
+      "kind": "append",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 59,
+      "position": [
+       600,
+       300
+      ],
+      "kind": "normalize",
+      "inputs": [
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 60,
+      "position": [
+       -1000,
+       900
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 61,
+      "position": [
+       -1000,
+       960
+      ],
+      "kind": "multiply",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 62,
+      "position": [
+       -800,
+       900
+      ],
+      "kind": "add",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 63,
+      "position": [
+       -600,
+       900
+      ],
+      "kind": "power",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.5
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 64,
+      "position": [
+       -400,
+       900
+      ],
+      "kind": "subtract",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 14.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 65,
+      "position": [
+       -200,
+       900
+      ],
+      "kind": "divide",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 20.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 66,
+      "position": [
+       0,
+       900
+      ],
+      "kind": "clamp",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.0
+       },
+       {
+        "float": 1.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 67,
+      "position": [
+       200,
+       760
+      ],
+      "kind": "color",
+      "inputs": [
+       {
+        "vector": [
+         0.02843,
+         0.47353,
+         0.43415
+        ]
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 68,
+      "position": [
+       200,
+       840
+      ],
+      "kind": "color",
+      "inputs": [
+       {
+        "vector": [
+         0.00304,
+         0.04231,
+         0.10702
+        ]
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 69,
+      "position": [
+       600,
+       800
+      ],
+      "kind": "lerp_vector",
+      "inputs": [
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       },
+       {
+        "vector": [
+         0.0,
+         0.0,
+         0.0
+        ]
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 70,
+      "position": [
+       200,
+       980
+      ],
+      "kind": "power",
+      "inputs": [
+       {
+        "float": 0.0
+       },
+       {
+        "float": 0.6
+       }
+      ],
+      "slot": "base_color"
+     },
+     {
+      "id": 71,
+      "position": [
+       600,
+       980
+      ],
+      "kind": "lerp",
+      "inputs": [
+       {
+        "float": 0.38
+       },
+       {
+        "float": 1.0
+       },
+       {
+        "float": 0.0
+       }
+      ],
+      "slot": "base_color"
+     }
+    ],
+    "wires": [
+     {
+      "from": {
+       "node": 3,
+       "port": 0
+      },
+      "to": {
+       "node": 4,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 5,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 6,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 5,
+       "port": 0
+      },
+      "to": {
+       "node": 7,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 6,
+       "port": 0
+      },
+      "to": {
+       "node": 7,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 2,
+       "port": 0
+      },
+      "to": {
+       "node": 8,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 7,
+       "port": 0
+      },
+      "to": {
+       "node": 9,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 8,
+       "port": 0
+      },
+      "to": {
+       "node": 9,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 9,
+       "port": 0
+      },
+      "to": {
+       "node": 10,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 10,
+       "port": 0
+      },
+      "to": {
+       "node": 11,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 11,
+       "port": 0
+      },
+      "to": {
+       "node": 12,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 11,
+       "port": 0
+      },
+      "to": {
+       "node": 13,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 14,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 15,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 14,
+       "port": 0
+      },
+      "to": {
+       "node": 16,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 15,
+       "port": 0
+      },
+      "to": {
+       "node": 16,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 2,
+       "port": 0
+      },
+      "to": {
+       "node": 17,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 16,
+       "port": 0
+      },
+      "to": {
+       "node": 18,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 17,
+       "port": 0
+      },
+      "to": {
+       "node": 18,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 18,
+       "port": 0
+      },
+      "to": {
+       "node": 19,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 19,
+       "port": 0
+      },
+      "to": {
+       "node": 20,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 20,
+       "port": 0
+      },
+      "to": {
+       "node": 21,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 20,
+       "port": 0
+      },
+      "to": {
+       "node": 22,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 12,
+       "port": 0
+      },
+      "to": {
+       "node": 23,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 21,
+       "port": 0
+      },
+      "to": {
+       "node": 23,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 13,
+       "port": 0
+      },
+      "to": {
+       "node": 24,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 22,
+       "port": 0
+      },
+      "to": {
+       "node": 24,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 25,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 26,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 25,
+       "port": 0
+      },
+      "to": {
+       "node": 27,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 26,
+       "port": 0
+      },
+      "to": {
+       "node": 27,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 2,
+       "port": 0
+      },
+      "to": {
+       "node": 28,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 27,
+       "port": 0
+      },
+      "to": {
+       "node": 29,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 28,
+       "port": 0
+      },
+      "to": {
+       "node": 29,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 29,
+       "port": 0
+      },
+      "to": {
+       "node": 30,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 30,
+       "port": 0
+      },
+      "to": {
+       "node": 31,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 31,
+       "port": 0
+      },
+      "to": {
+       "node": 32,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 31,
+       "port": 0
+      },
+      "to": {
+       "node": 33,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 23,
+       "port": 0
+      },
+      "to": {
+       "node": 34,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 32,
+       "port": 0
+      },
+      "to": {
+       "node": 34,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 24,
+       "port": 0
+      },
+      "to": {
+       "node": 35,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 33,
+       "port": 0
+      },
+      "to": {
+       "node": 35,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 36,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 37,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 36,
+       "port": 0
+      },
+      "to": {
+       "node": 38,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 37,
+       "port": 0
+      },
+      "to": {
+       "node": 38,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 2,
+       "port": 0
+      },
+      "to": {
+       "node": 39,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 38,
+       "port": 0
+      },
+      "to": {
+       "node": 40,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 39,
+       "port": 0
+      },
+      "to": {
+       "node": 40,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 40,
+       "port": 0
+      },
+      "to": {
+       "node": 41,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 41,
+       "port": 0
+      },
+      "to": {
+       "node": 42,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 42,
+       "port": 0
+      },
+      "to": {
+       "node": 43,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 42,
+       "port": 0
+      },
+      "to": {
+       "node": 44,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 34,
+       "port": 0
+      },
+      "to": {
+       "node": 45,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 43,
+       "port": 0
+      },
+      "to": {
+       "node": 45,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 35,
+       "port": 0
+      },
+      "to": {
+       "node": 46,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 44,
+       "port": 0
+      },
+      "to": {
+       "node": 46,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 47,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 48,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 47,
+       "port": 0
+      },
+      "to": {
+       "node": 49,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 48,
+       "port": 0
+      },
+      "to": {
+       "node": 49,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 2,
+       "port": 0
+      },
+      "to": {
+       "node": 50,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 49,
+       "port": 0
+      },
+      "to": {
+       "node": 51,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 50,
+       "port": 0
+      },
+      "to": {
+       "node": 51,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 51,
+       "port": 0
+      },
+      "to": {
+       "node": 52,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 52,
+       "port": 0
+      },
+      "to": {
+       "node": 53,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 53,
+       "port": 0
+      },
+      "to": {
+       "node": 54,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 53,
+       "port": 0
+      },
+      "to": {
+       "node": 55,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 45,
+       "port": 0
+      },
+      "to": {
+       "node": 56,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 54,
+       "port": 0
+      },
+      "to": {
+       "node": 56,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 46,
+       "port": 0
+      },
+      "to": {
+       "node": 57,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 55,
+       "port": 0
+      },
+      "to": {
+       "node": 57,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 56,
+       "port": 0
+      },
+      "to": {
+       "node": 58,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 57,
+       "port": 0
+      },
+      "to": {
+       "node": 58,
+       "port": 2
+      }
+     },
+     {
+      "from": {
+       "node": 58,
+       "port": 0
+      },
+      "to": {
+       "node": 59,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 59,
+       "port": 0
+      },
+      "to": {
+       "node": 1,
+       "port": 5
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 60,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 0
+      },
+      "to": {
+       "node": 60,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 61,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 4,
+       "port": 2
+      },
+      "to": {
+       "node": 61,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 60,
+       "port": 0
+      },
+      "to": {
+       "node": 62,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 61,
+       "port": 0
+      },
+      "to": {
+       "node": 62,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 62,
+       "port": 0
+      },
+      "to": {
+       "node": 63,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 63,
+       "port": 0
+      },
+      "to": {
+       "node": 64,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 64,
+       "port": 0
+      },
+      "to": {
+       "node": 65,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 65,
+       "port": 0
+      },
+      "to": {
+       "node": 66,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 67,
+       "port": 0
+      },
+      "to": {
+       "node": 69,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 68,
+       "port": 0
+      },
+      "to": {
+       "node": 69,
+       "port": 1
+      }
+     },
+     {
+      "from": {
+       "node": 66,
+       "port": 0
+      },
+      "to": {
+       "node": 69,
+       "port": 2
+      }
+     },
+     {
+      "from": {
+       "node": 69,
+       "port": 0
+      },
+      "to": {
+       "node": 1,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 66,
+       "port": 0
+      },
+      "to": {
+       "node": 70,
+       "port": 0
+      }
+     },
+     {
+      "from": {
+       "node": 70,
+       "port": 0
+      },
+      "to": {
+       "node": 71,
+       "port": 2
+      }
+     },
+     {
+      "from": {
+       "node": 71,
+       "port": 0
+      },
+      "to": {
+       "node": 1,
+       "port": 4
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "lighthouse-glass",
+   "name": "Lighthouse lantern glass",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-glass"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "lighthouse-lamp",
+   "name": "Lighthouse lamp / night only",
+   "transform": {
+    "translation": [
+     -505.0,
+     29.25,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-lamp"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "lighthouse-beam",
+   "name": "Lighthouse beam / turns at night",
+   "transform": {
+    "translation": [
+     -505.0,
+     29.25,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-beam"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "cloud-0",
+   "name": "Cloud 1",
+   "transform": {
+    "translation": [
+     568.9853,
+     211.8082,
+     581.1312
+    ],
+    "rotation_degrees": [
+     0,
+     9.3826,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-0"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.658
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-1",
+   "name": "Cloud 2",
+   "transform": {
+    "translation": [
+     -718.3252,
+     259.79,
+     -392.1049
+    ],
+    "rotation_degrees": [
+     0,
+     151.5925,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.422
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-2",
+   "name": "Cloud 3",
+   "transform": {
+    "translation": [
+     -691.1286,
+     241.7741,
+     899.2184
+    ],
+    "rotation_degrees": [
+     0,
+     37.3899,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.047
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-3",
+   "name": "Cloud 4",
+   "transform": {
+    "translation": [
+     -1144.5783,
+     172.0437,
+     835.2012
+    ],
+    "rotation_degrees": [
+     0,
+     58.6864,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-3"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.548
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-4",
+   "name": "Cloud 5",
+   "transform": {
+    "translation": [
+     -485.869,
+     204.1332,
+     960.5565
+    ],
+    "rotation_degrees": [
+     0,
+     296.3918,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-4"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 2.908
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-5",
+   "name": "Cloud 6",
+   "transform": {
+    "translation": [
+     -281.8305,
+     207.0131,
+     -246.5305
+    ],
+    "rotation_degrees": [
+     0,
+     161.6768,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-5"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 2.898
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-6",
+   "name": "Cloud 7",
+   "transform": {
+    "translation": [
+     692.9254,
+     223.3526,
+     1293.1764
+    ],
+    "rotation_degrees": [
+     0,
+     270.4717,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-6"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.278
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-7",
+   "name": "Cloud 8",
+   "transform": {
+    "translation": [
+     -1112.8435,
+     240.5233,
+     -286.0536
+    ],
+    "rotation_degrees": [
+     0,
+     248.8979,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-7"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.125
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-8",
+   "name": "Cloud 9",
+   "transform": {
+    "translation": [
+     -1160.2717,
+     229.7024,
+     -1087.6259
+    ],
+    "rotation_degrees": [
+     0,
+     197.347,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-8"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.334
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-9",
+   "name": "Cloud 10",
+   "transform": {
+    "translation": [
+     -385.9801,
+     248.4609,
+     -443.7524
+    ],
+    "rotation_degrees": [
+     0,
+     217.6071,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-9"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.255
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-10",
+   "name": "Cloud 11",
+   "transform": {
+    "translation": [
+     429.2363,
+     252.34,
+     -82.1032
+    ],
+    "rotation_degrees": [
+     0,
+     33.5788,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-10"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.288
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-11",
+   "name": "Cloud 12",
+   "transform": {
+    "translation": [
+     -841.7462,
+     246.1087,
+     722.4987
+    ],
+    "rotation_degrees": [
+     0,
+     274.8675,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-11"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.861
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-12",
+   "name": "Cloud 13",
+   "transform": {
+    "translation": [
+     -46.5244,
+     173.5375,
+     1056.6844
+    ],
+    "rotation_degrees": [
+     0,
+     42.4669,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-12"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 4.148
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-13",
+   "name": "Cloud 14",
+   "transform": {
+    "translation": [
+     -953.2024,
+     201.6799,
+     924.3231
+    ],
+    "rotation_degrees": [
+     0,
+     49.4939,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-13"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 3.081
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-14",
+   "name": "Cloud 15",
+   "transform": {
+    "translation": [
+     -237.2724,
+     180.0705,
+     631.6592
+    ],
+    "rotation_degrees": [
+     0,
+     67.0199,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-14"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 2.56
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cloud-15",
+   "name": "Cloud 16",
+   "transform": {
+    "translation": [
+     1307.4252,
+     236.119,
+     398.5418
+    ],
+    "rotation_degrees": [
+     0,
+     347.1165,
+     0
+    ],
+    "scale": [
+     9,
+     7,
+     9
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "cloud-15"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   },
+   "blackboard": {
+    "speed": {
+     "scalar": {
+      "number": 2.89
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "cloud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "moon",
+   "name": "Moon",
+   "transform": {
+    "translation": [
+     0,
+     -600,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     2,
+     2,
+     2
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "moon"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke",
+   "name": "Ship smoke / voxel puffs",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "smoke-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "smoke-00",
+   "name": "Smoke puff 1",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-01",
+   "name": "Smoke puff 2",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-02",
+   "name": "Smoke puff 3",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-03",
+   "name": "Smoke puff 4",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-04",
+   "name": "Smoke puff 5",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-05",
+   "name": "Smoke puff 6",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-06",
+   "name": "Smoke puff 7",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-07",
+   "name": "Smoke puff 8",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-08",
+   "name": "Smoke puff 9",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-09",
+   "name": "Smoke puff 10",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-10",
+   "name": "Smoke puff 11",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-11",
+   "name": "Smoke puff 12",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-12",
+   "name": "Smoke puff 13",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-13",
+   "name": "Smoke puff 14",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-14",
+   "name": "Smoke puff 15",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-15",
+   "name": "Smoke puff 16",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-16",
+   "name": "Smoke puff 17",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-17",
+   "name": "Smoke puff 18",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-18",
+   "name": "Smoke puff 19",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-19",
+   "name": "Smoke puff 20",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-20",
+   "name": "Smoke puff 21",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-21",
+   "name": "Smoke puff 22",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-22",
+   "name": "Smoke puff 23",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-23",
+   "name": "Smoke puff 24",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-24",
+   "name": "Smoke puff 25",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-25",
+   "name": "Smoke puff 26",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-26",
+   "name": "Smoke puff 27",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-27",
+   "name": "Smoke puff 28",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-28",
+   "name": "Smoke puff 29",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-29",
+   "name": "Smoke puff 30",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-30",
+   "name": "Smoke puff 31",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-31",
+   "name": "Smoke puff 32",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-32",
+   "name": "Smoke puff 33",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-33",
+   "name": "Smoke puff 34",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-34",
+   "name": "Smoke puff 35",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-35",
+   "name": "Smoke puff 36",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-36",
+   "name": "Smoke puff 37",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-37",
+   "name": "Smoke puff 38",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-1"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-38",
+   "name": "Smoke puff 39",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-2"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "smoke-39",
+   "name": "Smoke puff 40",
+   "transform": {
+    "translation": [
+     810.0,
+     20,
+     -1080.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.001,
+     0.001,
+     0.001
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "smoke-puff-0"
+    },
+    "texture": "white",
+    "color": [
+     0.2,
+     0.2,
+     0.2
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "sun",
+   "name": "Sun",
+   "transform": {
+    "translation": [
+     0,
+     600,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     2,
+     2,
+     2
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "sun"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "ui",
+   "name": "HUD and menus",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_canvas": {
+    "layer": "3d",
+    "reference": [
+     1280,
+     720
+    ],
+    "scaling": "fit",
+    "order": 10
+   },
+   "blackboard": {
+    "clock_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "compass_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "fps_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "sensitivity_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "fov_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "distance_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "objective_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "prompt_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "site_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "light_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_wood": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_fronds": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_rope": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_coconuts": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_sail": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_paddle": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "fps_at": {
+     "scalar": {
+      "number": -1.0
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "hud-script"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ui-clock",
+   "name": "Clock",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     7,
+     12,
+     7
+    ],
+    "order": 1,
+    "text": "Day 1  \u00b7  08:00  \u00b7  Morning",
+    "font_size": 21,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      20,
+      16
+     ],
+     "size": [
+      300,
+      38
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-objective",
+   "name": "Objective",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     7,
+     12,
+     7
+    ],
+    "order": 2,
+    "text": "",
+    "font_size": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      20,
+      60
+     ],
+     "size": [
+      600,
+      58
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-compass",
+   "name": "Compass",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     14,
+     7,
+     14,
+     7
+    ],
+    "order": 3,
+    "text": "N",
+    "font_size": 19,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      16
+     ],
+     "size": [
+      120,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-crosshair",
+   "name": "Crosshair",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 4,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      4,
+      4
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-prompt",
+   "name": "Interaction prompt",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     7,
+     12,
+     7
+    ],
+    "order": 5,
+    "text": "",
+    "font_size": 18,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      34
+     ],
+     "size": [
+      640,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-pickup",
+   "name": "Pickup",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     1.0,
+     0.92,
+     0.62,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 6,
+    "text": "",
+    "font_size": 17,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      78
+     ],
+     "size": [
+      520,
+      28
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-settings-button",
+   "name": "Settings button",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.03,
+     0.05,
+     0.08,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     8,
+     8,
+     8
+    ],
+    "order": 7,
+    "text": "Settings  (Esc)",
+    "font_size": 16,
+    "text_alignment": "center",
+    "visible": false,
+    "shortcuts": [
+     "Escape"
+    ],
+    "accessible_name": "Open settings",
+    "anchors": {
+     "min": [
+      1,
+      0
+     ],
+     "max": [
+      1,
+      0
+     ],
+     "pivot": [
+      1,
+      0
+     ],
+     "offset": [
+      -24,
+      16
+     ],
+     "size": [
+      170,
+      38
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-button",
+   "name": "Camp button",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.03,
+     0.05,
+     0.08,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     8,
+     8,
+     8
+    ],
+    "order": 8,
+    "text": "Camp  (C)",
+    "font_size": 16,
+    "text_alignment": "center",
+    "visible": false,
+    "shortcuts": [
+     "C"
+    ],
+    "accessible_name": "Open camp",
+    "anchors": {
+     "min": [
+      1,
+      0
+     ],
+     "max": [
+      1,
+      0
+     ],
+     "pivot": [
+      1,
+      0
+     ],
+     "offset": [
+      -24,
+      60
+     ],
+     "size": [
+      170,
+      38
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-fps",
+   "name": "FPS",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 9,
+    "text": "",
+    "font_size": 16,
+    "text_alignment": "right",
+    "visible": false,
+    "anchors": {
+     "min": [
+      1,
+      0
+     ],
+     "max": [
+      1,
+      0
+     ],
+     "pivot": [
+      1,
+      0
+     ],
+     "offset": [
+      -24,
+      104
+     ],
+     "size": [
+      240,
+      26
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-hint",
+   "name": "Controls hint",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.38
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     7,
+     10,
+     7
+    ],
+    "order": 10,
+    "font_size": 16,
+    "text_alignment": "center",
+    "visible": false,
+    "text": "WASD move   Shift sprint   Space jump   E gather and build   C camp   Hold T to speed up time",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -122
+     ],
+     "size": [
+      900,
+      34
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy",
+   "name": "Energy",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 11,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      1
+     ],
+     "max": [
+      0,
+      1
+     ],
+     "pivot": [
+      0,
+      1
+     ],
+     "offset": [
+      20,
+      -20
+     ],
+     "size": [
+      260,
+      50
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-label",
+   "name": "Energy label",
+   "parent": "ui-energy",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "Energy",
+    "font_size": 14,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      12,
+      5
+     ],
+     "size": [
+      236,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-bar",
+   "name": "Energy bar",
+   "parent": "ui-energy",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      12,
+      28
+     ],
+     "size": [
+      236,
+      12
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-fill",
+   "name": "Energy fill",
+   "parent": "ui-energy-bar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.3,
+     0.85,
+     0.45,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      236,
+      12
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-hotbar",
+   "name": "Inventory",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     8,
+     8,
+     8
+    ],
+    "order": 12,
+    "layout": "row",
+    "gap": 8,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -18
+     ],
+     "size": [
+      536,
+      88
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-label-site",
+   "name": "Raft site label",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.4
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     5,
+     8,
+     5
+    ],
+    "order": 13,
+    "text": "Raft",
+    "font_size": 15,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      190,
+      28
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-label-light",
+   "name": "Lighthouse label",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.4
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     5,
+     8,
+     5
+    ],
+    "order": 14,
+    "text": "Lighthouse",
+    "font_size": 15,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      210,
+      28
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-wood",
+   "name": "driftwood",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-wood",
+   "name": "driftwood icon",
+   "parent": "ui-slot-wood",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.0,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-wood",
+   "name": "driftwood count",
+   "parent": "ui-slot-wood",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 driftwood",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-fronds",
+   "name": "palm fronds",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-fronds",
+   "name": "palm fronds icon",
+   "parent": "ui-slot-fronds",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.16666666666666666,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-fronds",
+   "name": "palm fronds count",
+   "parent": "ui-slot-fronds",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 palm fronds",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-rope",
+   "name": "rope",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-rope",
+   "name": "rope icon",
+   "parent": "ui-slot-rope",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.3333333333333333,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-rope",
+   "name": "rope count",
+   "parent": "ui-slot-rope",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 rope",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-coconuts",
+   "name": "coconuts",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-coconuts",
+   "name": "coconuts icon",
+   "parent": "ui-slot-coconuts",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.5,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-coconuts",
+   "name": "coconuts count",
+   "parent": "ui-slot-coconuts",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 coconuts",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-sail",
+   "name": "frond sail",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 4,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-sail",
+   "name": "frond sail icon",
+   "parent": "ui-slot-sail",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.6666666666666666,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-sail",
+   "name": "frond sail count",
+   "parent": "ui-slot-sail",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 frond sail",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-paddle",
+   "name": "paddle",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 5,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-paddle",
+   "name": "paddle icon",
+   "parent": "ui-slot-paddle",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.8333333333333334,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-paddle",
+   "name": "paddle count",
+   "parent": "ui-slot-paddle",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 paddle",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp",
+   "name": "Camp panel",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     22,
+     20,
+     22,
+     20
+    ],
+    "order": 30,
+    "layout": "column",
+    "visible": false,
+    "gap": 10,
+    "anchors": {
+     "min": [
+      1,
+      0.5
+     ],
+     "max": [
+      1,
+      0.5
+     ],
+     "pivot": [
+      1,
+      0.5
+     ],
+     "offset": [
+      -24,
+      0
+     ],
+     "size": [
+      460,
+      470
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-title",
+   "name": "Camp title",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "Camp",
+    "font_size": 26,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      34
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-note",
+   "name": "Camp note",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 14,
+    "text": "Craft, eat and rest. Greyed-out recipes need more materials.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      22
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-rope",
+   "name": "Twist rope  \u00b7  2 palm fronds",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 2,
+    "text": "Twist rope  \u00b7  2 palm fronds",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Twist rope  \u00b7  2 palm fronds",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-paddle",
+   "name": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 3,
+    "text": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-sail",
+   "name": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 4,
+    "text": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-eat",
+   "name": "Eat a coconut  \u00b7  +30 energy",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 5,
+    "text": "Eat a coconut  \u00b7  +30 energy",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Eat a coconut  \u00b7  +30 energy",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-rest",
+   "name": "Rest in the shade until dusk",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 6,
+    "text": "Rest in the shade until dusk",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Rest in the shade until dusk",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-close",
+   "name": "Close  (C)",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 7,
+    "text": "Close  (C)",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [
+     "C",
+     "Escape"
+    ],
+    "accessible_name": "Close  (C)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu",
+   "name": "Settings menu backdrop",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.01,
+     0.03,
+     0.5
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 40,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu-panel",
+   "name": "Settings panel",
+   "parent": "ui-menu",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     28,
+     24,
+     28,
+     24
+    ],
+    "layout": "column",
+    "gap": 12,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      900,
+      694
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu-title",
+   "name": "Title",
+   "parent": "ui-menu-panel",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "Settings",
+    "font_size": 30,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      844,
+      42
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu-note",
+   "name": "Note",
+   "parent": "ui-menu-panel",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 15,
+    "text": "Time stands still while this menu is open.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      844,
+      22
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu-columns",
+   "name": "Columns",
+   "parent": "ui-menu-panel",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "layout": "row",
+    "gap": 36,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      844,
+      494
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-col-controls",
+   "name": "Controls column",
+   "parent": "ui-menu-columns",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "layout": "column",
+    "gap": 10,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      494
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-col-graphics",
+   "name": "Graphics column",
+   "parent": "ui-menu-columns",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "layout": "column",
+    "gap": 10,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      494
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-menu-buttons",
+   "name": "Buttons",
+   "parent": "ui-menu-panel",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "layout": "row",
+    "gap": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      844,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-resume",
+   "name": "Resume",
+   "parent": "ui-menu-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 0,
+    "text": "Resume  (Esc)",
+    "font_size": 18,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Escape"
+    ],
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      220,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-quit",
+   "name": "Quit",
+   "parent": "ui-menu-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.35,
+     0.12,
+     0.12,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 1,
+    "text": "Quit game",
+    "font_size": 18,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      180,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-head-controls",
+   "name": "MOUSE AND VIEW",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "MOUSE AND VIEW",
+    "font_size": 15,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      22
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-sensitivity",
+   "name": "Mouse sensitivity",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "slider",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     10
+    ],
+    "order": 1,
+    "text": "Mouse sensitivity",
+    "font_size": 17,
+    "value": 1.0,
+    "min": 0.1,
+    "max": 3.0,
+    "step": 0.05,
+    "accessible_name": "Mouse sensitivity",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      56
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-invert",
+   "name": "Invert mouse Y",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 2,
+    "text": "Invert mouse Y",
+    "font_size": 17,
+    "value": 0.0,
+    "accessible_name": "Invert mouse Y",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-fov",
+   "name": "Field of view",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "slider",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     10
+    ],
+    "order": 3,
+    "text": "Field of view",
+    "font_size": 17,
+    "value": 75.0,
+    "min": 60.0,
+    "max": 110.0,
+    "step": 1.0,
+    "accessible_name": "Field of view",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      56
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-bob",
+   "name": "Head bobbing",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 4,
+    "text": "Head bobbing",
+    "font_size": 17,
+    "value": 1.0,
+    "accessible_name": "Head bobbing",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-help",
+   "name": "Help",
+   "parent": "ui-col-controls",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 5,
+    "font_size": 15,
+    "text": "WASD walk, Shift sprint, Space jump, E gather.\nC opens camp. Hold T to speed up time.\nArrow keys adjust a focused slider; Tab moves focus.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      90
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-head-graphics",
+   "name": "GRAPHICS",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "GRAPHICS",
+    "font_size": 15,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      22
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-quality",
+   "name": "Quality: High",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     9,
+     12,
+     9
+    ],
+    "order": 1,
+    "text": "Quality: High",
+    "font_size": 17,
+    "accessible_name": "Quality: High",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-distance",
+   "name": "View distance",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "slider",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     10
+    ],
+    "order": 2,
+    "text": "View distance",
+    "font_size": 17,
+    "value": 2.0,
+    "min": 0.0,
+    "max": 2.0,
+    "step": 1.0,
+    "accessible_name": "View distance",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      56
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-shadows",
+   "name": "Shadows",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 3,
+    "text": "Shadows",
+    "font_size": 17,
+    "value": 1.0,
+    "accessible_name": "Shadows",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-clouds",
+   "name": "Clouds",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 4,
+    "text": "Clouds",
+    "font_size": 17,
+    "value": 1.0,
+    "accessible_name": "Clouds",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-bloom",
+   "name": "Bloom",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 5,
+    "text": "Bloom",
+    "font_size": 17,
+    "value": 1.0,
+    "accessible_name": "Bloom",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-vsync",
+   "name": "VSync",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 6,
+    "text": "VSync",
+    "font_size": 17,
+    "value": 1.0,
+    "accessible_name": "VSync",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-window",
+   "name": "Window: Windowed",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     9,
+     12,
+     9
+    ],
+    "order": 7,
+    "text": "Window: Windowed",
+    "font_size": 17,
+    "accessible_name": "Window: Windowed",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-opt-fps",
+   "name": "Show FPS",
+   "parent": "ui-col-graphics",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "toggle",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     8,
+     12,
+     8
+    ],
+    "order": 8,
+    "text": "Show FPS",
+    "font_size": 17,
+    "value": 0.0,
+    "accessible_name": "Show FPS",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      404,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title",
+   "name": "Title screen",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.01,
+     0.03,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 50,
+    "visible": true,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-card",
+   "name": "Title screen card",
+   "parent": "ui-title",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     34,
+     30,
+     34,
+     30
+    ],
+    "layout": "column",
+    "gap": 14,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      780,
+      470
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-name",
+   "name": "Title",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "SAND ISLAND",
+    "font_size": 52,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      64
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-story",
+   "name": "Story",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 19,
+    "text": "You wake up on a tiny island with one palm tree. The ship that could have saved you is already steaming away, and the current is too strong to swim.\nBuild a raft and find your way home.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      108
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-controls",
+   "name": "Controls",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "font_size": 15,
+    "text": "WASD walk   Shift sprint   Space jump   Mouse look\nE gather and build   C camp: craft, eat and rest\nHold T to speed up time   Esc settings",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      76
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-buttons",
+   "name": "Title buttons",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "layout": "row",
+    "gap": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-start",
+   "name": "Start  (Enter)",
+   "parent": "ui-title-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 0,
+    "text": "Start  (Enter)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Enter",
+     "Space",
+     "E"
+    ],
+    "accessible_name": "Start  (Enter)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      260,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-quit",
+   "name": "Quit  (Esc)",
+   "parent": "ui-title-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.35,
+     0.12,
+     0.12,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 1,
+    "text": "Quit  (Esc)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Escape"
+    ],
+    "accessible_name": "Quit  (Esc)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      180,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end",
+   "name": "Ending screen",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.01,
+     0.03,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 51,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-card",
+   "name": "Ending screen card",
+   "parent": "ui-end",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     34,
+     30,
+     34,
+     30
+    ],
+    "layout": "column",
+    "gap": 14,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      720,
+      430
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-name",
+   "name": "Ending title",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "RESCUED",
+    "font_size": 52,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      64
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-story",
+   "name": "Ending story",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 19,
+    "text": "The lighthouse keeper spots your frond sail and rows out to meet you. After everything, you are going home.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      84
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-stats",
+   "name": "Ending stats",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "font_size": 16,
+    "text": "",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      70
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-buttons",
+   "name": "Ending buttons",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "layout": "row",
+    "gap": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-again",
+   "name": "Play again  (Enter)",
+   "parent": "ui-end-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 0,
+    "text": "Play again  (Enter)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Enter"
+    ],
+    "accessible_name": "Play again  (Enter)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      260,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-quit",
+   "name": "Quit  (Esc)",
+   "parent": "ui-end-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.35,
+     0.12,
+     0.12,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 1,
+    "text": "Quit  (Esc)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Escape"
+    ],
+    "accessible_name": "Quit  (Esc)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      180,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-fade",
+   "name": "Fade",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 90,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-toast",
+   "name": "Message",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.45
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     9,
+     12,
+     9
+    ],
+    "order": 95,
+    "font_size": 20,
+    "text_alignment": "center",
+    "visible": false,
+    "anchors": {
+     "min": [
+      0.5,
+      0.3
+     ],
+     "max": [
+      0.5,
+      0.3
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      820,
+      42
+     ]
+    }
+   }
+  }
+ ]
+}

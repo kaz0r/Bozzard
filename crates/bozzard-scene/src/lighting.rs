@@ -10,6 +10,10 @@ pub struct Lighting {
     /// World-space depth and normal offsets for shadow acne control.
     pub shadow_bias: f32,
     pub shadow_normal_bias: f32,
+    /// Sun shadows cover casters within this many world units of the active camera; zero
+    /// fits every caster. Set it when distant objects would otherwise stretch the map.
+    #[serde(skip_serializing_if = "is_unlimited")]
+    pub shadow_distance: f32,
     /// World-space direction from a surface toward the sun; normalized at rendering.
     pub sun_direction: [f32; 3],
     pub sun_color: [f32; 3],
@@ -24,6 +28,7 @@ impl Default for Lighting {
             shadow_resolution: 2048,
             shadow_bias: 0.005,
             shadow_normal_bias: 0.01,
+            shadow_distance: 0.,
             sun_direction: [0.4, 0.8, 0.6],
             sun_color: [1.; 3],
             sun_intensity: 3.,
@@ -44,6 +49,10 @@ impl Lighting {
                 .iter()
                 .all(|x| x.is_finite() && (0.0..=1.0).contains(x)),
             "shadow bias must be finite and in 0..1 world units"
+        );
+        ensure!(
+            self.shadow_distance.is_finite() && (0.0..=100_000.0).contains(&self.shadow_distance),
+            "shadow distance must be finite and in 0..100000 world units"
         );
         let direction = glam::Vec3::from(self.sun_direction);
         ensure!(
@@ -68,4 +77,8 @@ impl Lighting {
         }
         Ok(())
     }
+}
+
+fn is_unlimited(distance: &f32) -> bool {
+    *distance == 0.
 }

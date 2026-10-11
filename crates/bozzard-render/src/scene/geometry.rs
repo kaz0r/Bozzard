@@ -628,8 +628,8 @@ signed! {
         max_distance, noise_amount, noise_scale, wind, light_intensity, ambient, steps,
     }
     Lighting {
-        shadows, shadow_resolution, shadow_bias, shadow_normal_bias, sun_direction, sun_color,
-        sun_intensity, ambient_color, ambient_intensity,
+        shadows, shadow_resolution, shadow_bias, shadow_normal_bias, shadow_distance,
+        sun_direction, sun_color, sun_intensity, ambient_color, ambient_intensity,
     }
     FogSettings {
         enabled, color, distance_density, start_distance, height_density, base_height,

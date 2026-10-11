@@ -164,6 +164,21 @@ impl SceneInstance {
                         lighting.sun_intensity = intensity;
                     }
                 }
+                Command::SunDirection(direction) => {
+                    self.lighting_override
+                        .get_or_insert(self.document.lighting)
+                        .sun_direction = direction;
+                }
+                Command::SunShadows(enabled) => {
+                    self.lighting_override
+                        .get_or_insert(self.document.lighting)
+                        .shadows = enabled;
+                }
+                Command::ShadowDistance(distance) => {
+                    self.lighting_override
+                        .get_or_insert(self.document.lighting)
+                        .shadow_distance = distance;
+                }
                 Command::Environment {
                     zenith,
                     horizon,
@@ -265,6 +280,34 @@ impl SceneInstance {
                             entity,
                             Camera::Orthographic {
                                 vertical_size: size,
+                                near,
+                                far,
+                            },
+                        )?;
+                    }
+                }
+                Command::CameraFov { target, degrees } => {
+                    let target = resolve(tokens, &target);
+                    let entity = *self
+                        .entities
+                        .get(&target)
+                        .context("camera target does not exist")?;
+                    let camera = world
+                        .get::<Camera>(entity)
+                        .context("target has no camera")?;
+                    let Camera::Perspective {
+                        vertical_fov_degrees,
+                        near,
+                        far,
+                    } = *camera
+                    else {
+                        anyhow::bail!("set_camera_fov requires a perspective camera");
+                    };
+                    if vertical_fov_degrees != degrees {
+                        world.insert(
+                            entity,
+                            Camera::Perspective {
+                                vertical_fov_degrees: degrees,
                                 near,
                                 far,
                             },
