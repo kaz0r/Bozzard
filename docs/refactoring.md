@@ -40,10 +40,10 @@ Rules:
 - **Prefab destroy and trigger overlap.** There are six copies of "collect the prefab's
   members, refuse an active camera", and two trigger-overlap passes, of which only the
   blueprint one enforces the budget.
-- **One session builder per host.** The player's reload (R/F6) skips three startup steps:
-  `enable_multiplayer`, `disable_hot_reload` for game packs, and profiling. Exported games
-  still accept R. In the editor, `start_play` and `play_job`/`accept_play` build Play
-  separately.
+- **One session builder per host.** The player half is done: startup and reload (R/F6)
+  share `start_session`, and every player renderer comes from one `RendererSettings`
+  (`461f9b5`, see the bugs below). In the editor, `start_play` and `play_job`/`accept_play`
+  still build Play separately.
 - **Shared Play input.** Key → UI input mapping, wheel scaling, "the scene owns the
   keyboard", focus-loss handling, chat routing and audio pausing are written twice, once
   in the player and once in the editor viewport. Modifier blocking already differs between
@@ -76,14 +76,41 @@ Rules:
 
 ## Suspected bugs found by the survey
 
-Verify each one before fixing it:
+Each was checked against `d2ad869` on 2026-10-10. Four were real and are fixed; one was not
+a bug as stated.
 
-- Mesh export accepts 8,192-pixel images, but the importer caps them at 4,096, so an
-  exported model could fail to re-import.
-- The player's reload loses multiplayer, game-pack hot-reload and profiling settings
-  (see Phase 2).
-- Compute errors in the editor set the status directly instead of going through
-  `App::result`, so they never reach the console.
-- The editor benchmark and the Debug pane compute frame-time percentiles with different
-  formulas.
-- `script_runtime` prints script log lines with `println!` from library code.
+- [x] **Fixed in `0ea52fb`.** Mesh export accepted 8,192-pixel images, but the importer caps
+  them at 4,096, so an exported model could fail to re-import. A 4,097-pixel texture did
+  export and then fail to import. 4,096 is the documented cap
+  ([assets](assets.md), [texture compression](texture-compression.md)), and no importer,
+  cooked model or compressed texture can hold more, so export now refuses wider images.
+  One `MAX_IMAGE_SIDE` constant serves the decoder, cooked models, compressed textures and
+  export. Test: `generated_mesh_export_only_writes_images_the_importer_accepts`.
+- [x] **Fixed in `461f9b5`.** The player's reload lost multiplayer, game-pack hot-reload and
+  profiling settings. All three were confirmed: after F6 Earth Factory's co-op menu no
+  longer opened, R on a packed game turned hot reload back on, and a `--frames` run stopped
+  recording GPU timings at R. Exported games keep R, because [exporting](exporting.md)
+  verifies a physical-R restart; R now rebuilds the session through the same
+  `start_session` as startup. Tests: `reload_keeps_the_game_pack_and_multiplayer_session_settings`,
+  and the windowed `reload_keeps_gpu_profiling_in_frame_runs` (ignored; needs a desktop).
+- [x] **Not a bug as stated.** Compute errors in the editor do set the status directly
+  instead of going through `App::result`, but they still reach the console:
+  `debug_end_frame` (`apps/editor/src/debug.rs`) logs every status change at the end of
+  the frame, at Error level while `error` is set. A narrow gap remains. If something else
+  changes the status later in the same frame, the compute error is never logged. If a
+  later successful `App::result` clears `error`, it is logged as Info. Routing these
+  per-frame errors through `App::result` would close that gap. But a persistent compute
+  failure would then add a console row every frame, interleaved with the scene's own log
+  lines, which defeats repeat collapsing. So it was left as is.
+- [x] **Fixed in `270b629`.** The editor benchmark and the Debug pane computed frame-time
+  percentiles with different formulas. For 30 frames, p95 was the 29th sample in the pane
+  and the 28th in the benchmark. Both, and the player's `--frames` summary, now call
+  `bozzard_diagnostics::percentile`, which uses nearest rank. Test:
+  `percentiles_use_the_nearest_rank`.
+- [x] **Fixed in `bd5abe0`.** `script_runtime` printed script log lines with `println!` from
+  library code, on top of recording them in the engine log. Script lines landed on the
+  editor's stdout and among the server's machine-readable output. Library code no longer
+  prints. `Diagnostics::echo` lets a host without a console receive each log line. The
+  player and server install `bozzard_diagnostics::terminal`, so `print` still writes one
+  line to stdout there, and warnings and errors go to stderr. Tests:
+  `an_installed_echo_receives_every_logged_line`, `script_log_lines_reach_the_terminal`.

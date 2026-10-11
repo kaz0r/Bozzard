@@ -99,6 +99,9 @@ machine-dependent simulation-only measurements, not rendering or GUI benchmarks.
 Custom Rust systems can use `App::add_named_system` and `bozzard_diagnostics::measure` for readable
 nested spans. A headless host enables `Diagnostics.profiler.recording` and calls `begin_frame()`
 before each capture interval, then reads `spans` and `console.events` from the resource.
+Engine library code never prints. A host without a console view sets `Diagnostics.echo` to
+receive each log line as it is recorded; the native player and `bozzard-server` install
+`bozzard_diagnostics::terminal`, which prints them.
 
 ## Blueprint debugger
 

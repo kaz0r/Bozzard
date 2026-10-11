@@ -64,10 +64,11 @@ pub fn block_bytes(width: u32, height: u32) -> usize {
 }
 fn validate(image: &ImageData) -> Result<()> {
     ensure!(
-        (1..=4096).contains(&image.width)
-            && (1..=4096).contains(&image.height)
+        (1..=crate::MAX_IMAGE_SIDE).contains(&image.width)
+            && (1..=crate::MAX_IMAGE_SIDE).contains(&image.height)
             && image.rgba.len() == image.width as usize * image.height as usize * 4,
-        "texture must contain RGBA8 pixels with dimensions 1..4096"
+        "texture must contain RGBA8 pixels with dimensions 1..{}",
+        crate::MAX_IMAGE_SIDE
     );
     Ok(())
 }
@@ -336,7 +337,9 @@ pub fn decode(bytes: &[u8]) -> Result<ImageData> {
     );
     let (width, height, png_bytes, count) = (r.word()?, r.word()?, r.word()?, r.word()?);
     ensure!(
-        (1..=4096).contains(&width) && (1..=4096).contains(&height) && (1..=4).contains(&count),
+        (1..=crate::MAX_IMAGE_SIDE).contains(&width)
+            && (1..=crate::MAX_IMAGE_SIDE).contains(&height)
+            && (1..=4).contains(&count),
         "invalid cooked texture header"
     );
     let mut image = crate::decoded_image(r.bytes(png_bytes as usize)?, "cooked fallback")?;

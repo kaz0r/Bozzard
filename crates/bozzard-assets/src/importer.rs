@@ -366,8 +366,8 @@ pub(crate) fn decoded_image(bytes: &[u8], label: &str) -> Result<ImageData> {
         .with_guessed_format()
         .with_context(|| format!("recognizing image {label}"))?;
     let mut limits = image::Limits::default();
-    limits.max_image_width = Some(4096);
-    limits.max_image_height = Some(4096);
+    limits.max_image_width = Some(crate::MAX_IMAGE_SIDE);
+    limits.max_image_height = Some(crate::MAX_IMAGE_SIDE);
     limits.max_alloc = Some(128 * 1024 * 1024);
     reader.limits(limits);
     let image = reader

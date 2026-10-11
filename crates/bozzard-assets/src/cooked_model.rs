@@ -258,8 +258,8 @@ pub fn encode(mesh: &MeshData, formats: &[Compression], progress: &Progress) -> 
         ))?;
         let (kind, data) = if formats.is_empty() {
             ensure!(
-                (1..=4096).contains(&image.width)
-                    && (1..=4096).contains(&image.height)
+                (1..=crate::MAX_IMAGE_SIDE).contains(&image.width)
+                    && (1..=crate::MAX_IMAGE_SIDE).contains(&image.height)
                     && image.rgba.len() == image.width as usize * image.height as usize * 4,
                 "invalid model image"
             );

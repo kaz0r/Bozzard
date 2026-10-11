@@ -307,7 +307,6 @@ impl SceneInstance {
                     while runtime.messages.len() > 64 {
                         runtime.messages.pop_front();
                     }
-                    println!("{text}");
                 }
             }
         }

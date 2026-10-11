@@ -239,11 +239,7 @@ impl DebugWorkspace {
             .map(|frame| frame.editor_cpu_ms)
             .collect();
         cpu.sort_by(f64::total_cmp);
-        let percentile = |fraction: f64| {
-            cpu[((cpu.len() as f64 * fraction).ceil() as usize)
-                .saturating_sub(1)
-                .min(cpu.len() - 1)]
-        };
+        let percentile = |fraction| bozzard_diagnostics::percentile(&cpu, fraction).unwrap_or(0.);
         ui.label(format!(
             "Editor CPU · median {:.2} ms · p95 {:.2} ms · p99 {:.2} ms",
             percentile(0.5),
@@ -252,11 +248,8 @@ impl DebugWorkspace {
         ));
         let mut intervals: Vec<_> = self.frames.iter().map(|frame| frame.interval_ms).collect();
         intervals.sort_by(f64::total_cmp);
-        let interval = |fraction: f64| {
-            intervals[((intervals.len() as f64 * fraction).ceil() as usize)
-                .saturating_sub(1)
-                .min(intervals.len() - 1)]
-        };
+        let interval =
+            |fraction| bozzard_diagnostics::percentile(&intervals, fraction).unwrap_or(0.);
         ui.label(format!(
             "Frame interval · median {:.2} ms · p95 {:.2} ms · p99 {:.2} ms",
             interval(0.5),
@@ -531,24 +524,24 @@ impl App {
         if benchmark.completed < benchmark.frames + 30 {
             return Ok(());
         }
-        let percentile = |mut values: Vec<f64>, fraction: f64| {
+        let samples = &self.debug.frames;
+        let sorted = |value: fn(&Frame) -> f64| {
+            let mut values: Vec<_> = samples.iter().map(value).collect();
             values.sort_by(f64::total_cmp);
             values
-                .get(((values.len().saturating_sub(1)) as f64 * fraction) as usize)
-                .copied()
-                .unwrap_or(0.)
         };
-        let samples = &self.debug.frames;
-        let cpu = samples.iter().map(|f| f.editor_cpu_ms).collect::<Vec<_>>();
-        let intervals = samples.iter().map(|f| f.interval_ms).collect::<Vec<_>>();
+        let (cpu, intervals) = (sorted(|f| f.editor_cpu_ms), sorted(|f| f.interval_ms));
+        let percentile = |values: &[f64], fraction| {
+            bozzard_diagnostics::percentile(values, fraction).unwrap_or(0.)
+        };
         println!(
             "editor_benchmark={}",
             serde_json::json!({
                 "adapter": self.gpu.adapter.get_info().name,
                 "debug_build": cfg!(debug_assertions), "play": benchmark.play,
                 "frames": samples.len(),
-                "cpu_median_ms": percentile(cpu.clone(), 0.5), "cpu_p95_ms": percentile(cpu, 0.95),
-                "interval_median_ms": percentile(intervals.clone(), 0.5), "interval_p95_ms": percentile(intervals, 0.95),
+                "cpu_median_ms": percentile(&cpu, 0.5), "cpu_p95_ms": percentile(&cpu, 0.95),
+                "interval_median_ms": percentile(&intervals, 0.5), "interval_p95_ms": percentile(&intervals, 0.95),
                 "frames_data": samples
             })
         );

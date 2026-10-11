@@ -64,6 +64,29 @@ pub(crate) fn retire_pending_compute_jobs(
     })
 }
 
+/// Every renderer the player creates gets these: at startup, after device recreation and
+/// after an R/F6 reload.
+#[derive(Clone, Copy)]
+pub(crate) struct RendererSettings {
+    occlusion: bool,
+    /// `--frames` runs print GPU pass timings.
+    profiling: bool,
+}
+impl RendererSettings {
+    pub(crate) fn new(options: &Options) -> Self {
+        Self {
+            occlusion: options.occlusion_enabled,
+            profiling: options.frames.is_some(),
+        }
+    }
+    pub(crate) fn renderer(self, gpu: &Gpu, format: wgpu::TextureFormat) -> SceneRenderer {
+        let mut renderer = SceneRenderer::new(gpu, format);
+        renderer.set_occlusion_enabled(self.occlusion);
+        renderer.set_profiling_enabled(self.profiling);
+        renderer
+    }
+}
+
 impl View {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
@@ -100,9 +123,8 @@ impl View {
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
             .context("surface is unsupported by selected adapter")?;
         config.present_mode = settings::surface_present_mode(&surface, &gpu, player_settings.vsync);
-        let mut renderer = SceneRenderer::new(&gpu, config.format);
-        renderer.set_occlusion_enabled(options.occlusion_enabled);
-        renderer.set_profiling_enabled(options.frames.is_some());
+        let renderer_settings = RendererSettings::new(options);
+        let renderer = renderer_settings.renderer(&gpu, config.format);
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         configure_surface_checked(&surface, &gpu, &config)?;
         if options.frames.is_some() {
@@ -127,9 +149,8 @@ impl View {
             gpu_frame_ms: VecDeque::new(),
             software: options.software,
             hardware: options.hardware,
-            occlusion_enabled: options.occlusion_enabled,
+            renderer_settings,
             device_recoveries: 0,
-            profile_frames: options.frames.is_some(),
             settings: *player_settings,
             settings_revision: 0,
         })
@@ -241,9 +262,7 @@ impl View {
             .context("recreated GPU cannot present to this surface")?;
         config.present_mode =
             settings::surface_present_mode(&self.surface, &gpu, self.settings.vsync);
-        let mut renderer = SceneRenderer::new(&gpu, config.format);
-        renderer.set_occlusion_enabled(self.occlusion_enabled);
-        renderer.set_profiling_enabled(self.profile_frames);
+        let mut renderer = self.renderer_settings.renderer(&gpu, config.format);
         assets
             .upload(&gpu, &mut renderer)
             .context("restoring graphics assets")?;
