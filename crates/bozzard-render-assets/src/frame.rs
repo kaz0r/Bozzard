@@ -826,6 +826,7 @@ fn frame_settings<D>(
             shadow_resolution: view.lighting.shadow_resolution,
             shadow_bias: view.lighting.shadow_bias,
             shadow_normal_bias: view.lighting.shadow_normal_bias,
+            shadow_distance: view.lighting.shadow_distance,
             sun_direction: view.lighting.sun_direction,
             sun_color: view.lighting.sun_color,
             sun_intensity: view.lighting.sun_intensity,

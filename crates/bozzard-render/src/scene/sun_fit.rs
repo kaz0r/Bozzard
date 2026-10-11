@@ -21,6 +21,13 @@ pub(super) enum FitRole {
     /// shade them, and sampling outside the map already returns lit.
     Far,
 }
+/// Clamp a light-space caster point to the shadow region's X/Y square, keeping its depth.
+pub(super) fn clamp_to_region(p: Vec3, region: Option<[Vec2; 2]>) -> Vec3 {
+    match region {
+        Some([lo, hi]) => Vec3::new(p.x.clamp(lo.x, hi.x), p.y.clamp(lo.y, hi.y), p.z),
+        None => p,
+    }
+}
 /// Combine caster extrema with receivers' farthest depth (most negative view z).
 pub(super) fn combine(min: Vec3, max: Vec3, far: f32) -> (Vec3, Vec3) {
     (Vec3::new(min.x, min.y, min.z.min(far)), max)
@@ -42,6 +49,7 @@ impl Cache {
         &mut self,
         view: Mat4,
         resolution: u32,
+        region: Option<[Vec2; 2]>,
         inputs: impl ExactSizeIterator<Item = (Mat4, [Vec3; 2], FitRole)>,
     ) -> Prepared {
         let key = view.to_cols_array().map(f32::to_bits);
@@ -110,8 +118,9 @@ impl Cache {
             };
             // Preserve object order, including equal signed-zero extrema.
             if role == FitRole::Box {
-                min = min.min(extent[0]);
-                max = max.max(extent[1]);
+                // Clamping is monotonic, so clamping each extent matches clamping each corner.
+                min = min.min(clamp_to_region(extent[0], region));
+                max = max.max(clamp_to_region(extent[1], region));
             } else {
                 far = far.min(extent[0].z);
             }

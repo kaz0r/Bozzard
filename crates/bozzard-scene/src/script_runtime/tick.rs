@@ -347,6 +347,8 @@ impl SceneInstance {
         let has_gravity = world.query::<Gravity>().next().is_some();
         let has_grounded = world.query::<GravityState>().next().is_some();
         let animation = world.resource::<middleware::animation::Runtime>();
+        let has_widgets = world.query::<middleware::ui::Widget>().next().is_some();
+        let widget_states = world.resource::<middleware::ui::Runtime>();
         let refresh =
             |id: &String, entity: Entity, transform: &Transform, view: &mut ObjectView| {
                 view.position = transform.translation;
@@ -362,6 +364,16 @@ impl SceneInstance {
                     },
                     None => view.text = None,
                 }
+                view.ui_value = has_widgets
+                    .then(|| world.get::<middleware::ui::Widget>(entity))
+                    .flatten()
+                    .map(|widget| {
+                        let value = widget_states
+                            .and_then(|r| r.widgets.get(id))
+                            .and_then(|state| state.value)
+                            .unwrap_or(widget.value);
+                        (value, [widget.min, widget.max])
+                    });
                 view.rigidbody = has_gravity
                     && world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
                     && world.get::<PlayerController>(entity).is_none();

@@ -1,0 +1,12 @@
+// Clouds drift with the trade wind and wrap around.
+fn on_update(me, dt) {
+    if get_scene_variable("menu_open") {
+        return;
+    }
+    let p = get_position(me);
+    let x = p[0] + get_object_variable("speed") * dt;
+    if x > 1800.0 {
+        x = -1800.0;
+    }
+    set_position(me, [x, p[1], p[2] + get_object_variable("speed") * 0.3 * dt]);
+}

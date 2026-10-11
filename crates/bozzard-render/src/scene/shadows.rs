@@ -840,6 +840,7 @@ fn fit(
     points: impl Iterator<Item = (Vec3, bool)>,
     direction: Vec3,
     resolution: u32,
+    region: Option<[Vec2; 2]>,
 ) -> Option<(Mat4, f32, f32)> {
     let view = sun_view(direction);
     let mut min = Vec3::splat(f32::INFINITY);
@@ -850,12 +851,35 @@ fn fit(
         if receiver {
             far = far.min(p.z);
         } else {
+            let p = sun_fit::clamp_to_region(p, region);
             min = min.min(p);
             max = max.max(p);
         }
     }
     let (min, max) = sun_fit::combine(min, max, far);
     fit_extents(min, max, view, resolution)
+}
+/// The light-space square that sun shadows cover around the camera, or `None` to fit every
+/// caster. A caster's light-space X/Y extent is clamped to it; depth stays whole, because a
+/// caster nearer the sun still shades the square. Orthographic views use their near center.
+pub(super) fn shadow_region(view_projection: Mat4, sun: Mat4, distance: f32) -> Option<[Vec2; 2]> {
+    if distance <= 0. {
+        return None;
+    }
+    let inverse = view_projection.inverse();
+    let eye = inverse * glam::Vec4::Z;
+    let eye = if eye.w.abs() > f32::EPSILON {
+        eye.truncate() / eye.w
+    } else {
+        inverse.project_point3(Vec3::ZERO)
+    };
+    let center = sun.transform_point3(eye).truncate();
+    center.is_finite().then(|| {
+        [
+            center - Vec2::splat(distance),
+            center + Vec2::splat(distance),
+        ]
+    })
 }
 pub(super) fn sun_view(direction: Vec3) -> Mat4 {
     let up = if direction.dot(Vec3::Y).abs() > 0.99 {
@@ -972,6 +996,11 @@ impl SceneRenderer {
         let fit_started = std::time::Instant::now();
         let light = scene.lighting;
         let direction = Vec3::from(light.sun_direction).normalize();
+        let region = shadow_region(
+            scene.view_projection,
+            sun_view(direction),
+            light.shadow_distance,
+        );
         let far_only = self.sun_fit_transparent_far_only;
         let role = |d: &PreparedDraw| {
             if !d.object.material.lit {
@@ -986,6 +1015,7 @@ impl SceneRenderer {
             self.shadows.sun_fit.prepare(
                 sun_view(direction),
                 light.shadow_resolution,
+                region,
                 draws
                     .iter()
                     .zip(bounds)
@@ -1014,6 +1044,7 @@ impl SceneRenderer {
                     }),
                 direction,
                 light.shadow_resolution,
+                region,
             )
         };
         self.stats.sun_fit_ms = fit_started.elapsed().as_secs_f64() * 1000.;
@@ -1807,7 +1838,7 @@ mod tests {
         let bounds = [Vec3::new(-20., -2., -10.), Vec3::new(25., 12., 10.)];
         for direction in [Vec3::Y, -Vec3::Y, Vec3::new(0.4, 0.8, 0.6).normalize()] {
             let (m, range, texel) =
-                fit(corners(bounds).map(|p| (p, false)), direction, 2048).unwrap();
+                fit(corners(bounds).map(|p| (p, false)), direction, 2048, None).unwrap();
             assert!(range > 0. && texel > 0.);
             for p in corners(bounds) {
                 let q = m.project_point3(p);
@@ -1817,7 +1848,43 @@ mod tests {
                 );
             }
         }
-        assert!(fit(std::iter::empty(), Vec3::Y, 2048).is_none());
+        assert!(fit(std::iter::empty(), Vec3::Y, 2048, None).is_none());
+    }
+    #[test]
+    fn shadow_distance_keeps_the_map_around_the_camera() {
+        // An island near the camera and a ship a kilometre out: without a distance the
+        // ship stretches the map; with one, the texels stay sized for the island.
+        let direction = Vec3::new(0.4, 0.85, 0.35).normalize();
+        let island = [Vec3::new(-30., -5., -30.), Vec3::new(30., 9., 30.)];
+        let ship = [Vec3::new(800., 0., -1000.), Vec3::new(870., 30., -980.)];
+        let eye = Vec3::new(2., 1.7, 5.);
+        let view = glam::camera::rh::view::look_to_mat4(eye, Vec3::NEG_Z, Vec3::Y);
+        let projection = glam::camera::rh::proj::directx::perspective(1.2, 1.6, 0.1, 9000.);
+        let points = || corners(island).chain(corners(ship)).map(|p| (p, false));
+        let (_, _, whole) = fit(points(), direction, 2048, None).unwrap();
+        let region = shadow_region(projection * view, sun_view(direction), 40.);
+        let [lo, hi] = region.unwrap();
+        let center = sun_view(direction).transform_point3(eye).truncate();
+        assert!(
+            (lo + hi - center * 2.).abs().max_element() < 1e-3,
+            "{lo} {hi} {center}"
+        );
+        let (m, _, near) = fit(points(), direction, 2048, region).unwrap();
+        assert!(whole > 0.5 && near < 80. / 2040., "{whole} {near}");
+        // Everything within the distance of the camera still lands in the map.
+        let q = m.project_point3(eye + Vec3::new(10., -1.7, -10.));
+        assert!(
+            q.x.abs() <= 1. && q.y.abs() <= 1. && (0.0..=1.0).contains(&q.z),
+            "{q:?}"
+        );
+        // The ship stays in depth range: it is a caster nearer the sun for some receivers.
+        for p in corners(ship) {
+            assert!((0.0..=1.0).contains(&m.project_point3(p).z));
+        }
+        assert!(shadow_region(projection * view, sun_view(direction), 0.).is_none());
+        let orthographic =
+            glam::camera::rh::proj::directx::orthographic(-8., 8., -5., 5., 0.1, 50.);
+        assert!(shadow_region(orthographic * view, sun_view(direction), 10.).is_some());
     }
     #[test]
     fn one_texel_of_world_bias_tracks_the_fitted_area() {
@@ -1831,7 +1898,7 @@ mod tests {
         let mut grew = false;
         for bounds in [arena, stray] {
             let (_, range, texel) =
-                fit(corners(bounds).map(|p| (p, false)), direction, 2048).unwrap();
+                fit(corners(bounds).map(|p| (p, false)), direction, 2048, None).unwrap();
             // Floor faces sit 0.85 to the sun, so a slanted texel misreads 0.62 texels of depth.
             let error = 0.62 * texel / range;
             assert!(bias(0.005, texel, range) >= error, "{texel} {range}");
@@ -1901,6 +1968,11 @@ mod fit_cache_tests {
                 _ => Vec3::new(-0.3, -0.4, -0.5).normalize(),
             };
             let resolution = if tick % 3 == 0 { 512 } else { 2048 };
+            // A camera-centred square clamps casters' light-space X/Y on alternate ticks.
+            let region = (tick % 4 >= 2).then(|| {
+                let center = Vec2::new(random(), random()) * 0.5;
+                [center - Vec2::splat(6.), center + Vec2::splat(6.)]
+            });
             let expected = fit(
                 inputs
                     .iter()
@@ -1911,8 +1983,14 @@ mod fit_cache_tests {
                     }),
                 direction,
                 resolution,
+                region,
             );
-            let result = cache.prepare(sun_view(direction), resolution, inputs.iter().copied());
+            let result = cache.prepare(
+                sun_view(direction),
+                resolution,
+                region,
+                inputs.iter().copied(),
+            );
             assert!(!result.fallback);
             assert_eq!(bits(result.fit), bits(expected), "tick {tick}");
             if tick % 100 != 0
@@ -1930,20 +2008,21 @@ mod fit_cache_tests {
                 item.0 = Mat4::from_scale(Vec3::splat(scale));
                 item.2 = sun_fit::FitRole::Box;
             }
-            let result = cache.prepare(sun_view(Vec3::Z), 256, inputs.iter().copied());
+            let result = cache.prepare(sun_view(Vec3::Z), 256, None, inputs.iter().copied());
             let expected = fit(
                 inputs
                     .iter()
                     .flat_map(|(m, b, _)| corners(*b).map(|p| (m.transform_point3(p), false))),
                 Vec3::Z,
                 256,
+                None,
             );
             assert_eq!(bits(result.fit), bits(expected));
         }
         inputs.clear();
         assert!(
             cache
-                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .prepare(sun_view(Vec3::Z), 256, None, inputs.iter().copied())
                 .fit
                 .is_none()
         );
@@ -1954,13 +2033,13 @@ mod fit_cache_tests {
         ));
         assert!(
             cache
-                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .prepare(sun_view(Vec3::Z), 256, None, inputs.iter().copied())
                 .fallback
         );
         inputs[0].0 = Mat4::IDENTITY;
         assert!(
             !cache
-                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .prepare(sun_view(Vec3::Z), 256, None, inputs.iter().copied())
                 .fallback
         );
     }
