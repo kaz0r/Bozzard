@@ -1,0 +1,6 @@
+{
+ "version": 1,
+ "name": "Sand Island",
+ "start_scene": "scenes/island.json",
+ "view": "3d"
+}
