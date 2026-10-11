@@ -42,6 +42,7 @@ fn view<D>(rows: &[GraphRow], wrap: impl Fn(Drawable) -> D) -> RenderView<D> {
         shader_graphs: rows.iter().map(|(_, graph)| Some(graph.clone())).collect(),
         material_instances: vec![None; rows.len()],
         particles: Vec::new(),
+        trails: Vec::new(),
         display_time: 0.,
         texts: Vec::new(),
         shared_texts: Vec::new(),

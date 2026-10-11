@@ -409,6 +409,25 @@ impl crate::SceneInstance {
         // Switching backend starts a fresh decorative effect, so no stale GPU pose can leak.
         self.particle_state.emitters.clear();
     }
+    /// Lay and expire Trail Renderer points at each object's current pose. Decorative,
+    /// like particles: call it wherever particles step.
+    pub fn step_trails(&mut self, world: &bozzard_ecs::World, dt: f32) -> Result<()> {
+        use crate::middleware::trail::Trail;
+        if !self.has_component::<Trail>(world, |_| true) {
+            return self.trail_state.step(&[], dt);
+        }
+        let matrices = self.live_matrices(world)?;
+        let trails: Vec<_> = self
+            .entities
+            .iter()
+            .filter_map(|(id, entity)| {
+                world
+                    .get::<Trail>(*entity)
+                    .map(|trail| (id.clone(), matrices[id], *trail))
+            })
+            .collect();
+        self.trail_state.step(&trails, dt)
+    }
     pub fn step_particles(&mut self, world: &bozzard_ecs::World, dt: f32) -> Result<()> {
         if !self.has_component::<ParticleEmitter>(world, |_| true) {
             self.particle_state.emitters.clear();

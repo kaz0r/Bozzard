@@ -776,6 +776,22 @@ fn frame_settings<D>(
     Ok(RenderScene {
         skin_poses: crate::skin_poses(&view.skin_poses),
         particles: crate::particle_frame(&view.particles),
+        trails: view
+            .trails
+            .iter()
+            .map(|ribbon| bozzard_render::TrailRibbon {
+                additive: ribbon.additive,
+                points: ribbon
+                    .points
+                    .iter()
+                    .map(|point| bozzard_render::TrailPoint {
+                        position: point.position,
+                        width: point.width,
+                        color: point.color,
+                    })
+                    .collect(),
+            })
+            .collect(),
         fog: bozzard_render::FogSettings {
             enabled: layer == Layer::ThreeD && view.fog.enabled,
             color: view.fog.color,

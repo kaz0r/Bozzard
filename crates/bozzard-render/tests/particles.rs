@@ -5,6 +5,7 @@ fn scene() -> RenderScene {
         skin_poses: Default::default(),
         shader_time: 0.,
         particles: vec![],
+        trails: Vec::new(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 20.),
         items: vec![],
         lighting: Lighting {

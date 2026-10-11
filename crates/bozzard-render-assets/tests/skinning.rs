@@ -48,6 +48,7 @@ fn gltf_skin_matches_cpu_reference_and_invalidates_shadows() -> anyhow::Result<(
         skin_poses: BTreeMap::new(),
         shader_time: 0.,
         particles: vec![],
+        trails: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],

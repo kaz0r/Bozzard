@@ -8,6 +8,7 @@ pub mod registry;
 pub mod signals;
 pub mod sprite;
 pub mod timeline;
+pub mod trail;
 pub mod tween;
 pub mod ui;
 pub const ENTRIES: &[registry::Entry] = &[
@@ -25,6 +26,7 @@ pub const ENTRIES: &[registry::Entry] = &[
     registry::entry::<ui::Widget>(),
     registry::entry::<ui::Localization>(),
     registry::entry::<particle::Modules>(),
+    registry::entry::<trail::Trail>(),
 ];
 
 pub mod checkpoint;

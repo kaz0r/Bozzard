@@ -35,6 +35,7 @@ fn scene() -> RenderScene {
     RenderScene {
         skin_poses: Default::default(),
         particles: Vec::new(),
+        trails: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),

@@ -720,6 +720,16 @@ fn frame_signature(
         }
         hash.write(&record);
     }
+    hash.write_usize(scene.trails.len());
+    for ribbon in &scene.trails {
+        ribbon.additive.hash(&mut hash);
+        hash.write_usize(ribbon.points.len());
+        for point in &ribbon.points {
+            let [x, y, z] = point.position.to_array();
+            let [r, g, b, a] = point.color;
+            hash.floats(&[x, y, z, point.width, r, g, b, a]);
+        }
+    }
     if let Some(gi) = &scene.gi {
         gi.resolution.hash(&mut hash);
         let [a, b, c] = gi.min;
@@ -921,6 +931,7 @@ mod tests {
         let mut scene = RenderScene {
             skin_poses: Default::default(),
             particles: (0..6).map(particle).collect(),
+            trails: Vec::new(),
             fog: Default::default(),
             gi: Some(IrradianceVolume {
                 min: [0.; 3],
@@ -1054,6 +1065,7 @@ mod tests {
         let mut scene = RenderScene {
             skin_poses: Default::default(),
             particles: (0..16_384).map(particle).collect(),
+            trails: Vec::new(),
             fog: Default::default(),
             gi: Some(IrradianceVolume {
                 min: [0.; 3],

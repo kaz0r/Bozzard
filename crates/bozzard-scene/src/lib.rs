@@ -1115,6 +1115,7 @@ impl Scene {
                 .flat_map(|o| o.parent.iter().flat_map(|p| [p.clone(), o.id.clone()]))
                 .collect(),
             particle_state: Default::default(),
+            trail_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
             lighting_override: None,
@@ -1145,6 +1146,7 @@ pub struct SceneInstance {
     instance_id: u64,
     additive_scenes: BTreeMap<String, scene_loading::LoadedScene>,
     particle_state: particles::ParticleSystem,
+    trail_state: middleware::trail::TrailSystem,
     display_time: f32,
     display_overrides: display::DisplayOverrides,
     lighting_override: Option<Lighting>,
@@ -1234,6 +1236,7 @@ impl SceneInstance {
     /// on the next step.
     pub fn adopt_effects(&mut self, previous: &mut SceneInstance) {
         self.particle_state = std::mem::take(&mut previous.particle_state);
+        self.trail_state = std::mem::take(&mut previous.trail_state);
         self.display_time = previous.display_time;
     }
     /// The matrices of `global_transforms`, in `document()` object order and without
@@ -1702,6 +1705,14 @@ impl SceneInstance {
                 } else {
                     Vec::new()
                 },
+                trails: if layer == Layer::ThreeD {
+                    self.trail_state.frame(|id| {
+                        let entity = self.entities.get(id)?;
+                        Some(matrices[*self.object_indices.get(entity)?])
+                    })
+                } else {
+                    Vec::new()
+                },
                 fog: self.fog_override.unwrap_or(self.document.fog),
                 lights,
                 environment: self
@@ -1769,6 +1780,8 @@ pub struct RenderView<D> {
     pub shader_graphs: Vec<Option<std::sync::Arc<shader_graph::ShaderGraph>>>,
     pub material_instances: Vec<Option<std::sync::Arc<material_asset::MaterialInstance>>>,
     pub particles: Vec<Particle>,
+    /// Trail Renderer ribbons, oldest point first, with the current position as the head.
+    pub trails: Vec<middleware::trail::TrailRibbon>,
     pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
     /// Immutable text descriptors used by retained extraction. Owned extraction

@@ -120,6 +120,7 @@ fn authored_widgets_render_and_accessible_actions_match_hit_geometry() -> anyhow
             skin_poses: Default::default(),
             shader_time: 0.,
             particles: vec![],
+            trails: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

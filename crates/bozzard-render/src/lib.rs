@@ -17,8 +17,8 @@ pub use scene::{
     MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats,
     OcclusionResult, Particle, ParticleKind, PendingUpload, RenderScene, SceneRenderer, ScreenText,
     ShaderSource, ShaderWarmup, SpotShadowSettings, SurfaceMaterialOverride, TextAlignment,
-    TextMesh, TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress, UploadSource,
-    Vignette, VolumetricFog, text_bounds, upload_memory_bytes,
+    TextMesh, TextureKind, ToneMapper, TrailPoint, TrailRibbon, UploadContext, UploadData,
+    UploadProgress, UploadSource, Vignette, VolumetricFog, text_bounds, upload_memory_bytes,
 };
 
 use anyhow::{Context, Result, ensure};

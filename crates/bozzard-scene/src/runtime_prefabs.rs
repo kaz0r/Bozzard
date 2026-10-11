@@ -291,6 +291,7 @@ impl SceneInstance {
         }
         middleware::checkpoint::remove_objects(world, ids);
         self.particle_state.remove_objects(ids);
+        self.trail_state.remove_objects(ids);
         if world
             .resource::<GameplayState>()
             .is_some_and(|s| ids.contains(&s.player))

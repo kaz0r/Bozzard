@@ -30,6 +30,7 @@ fn grid(count: usize) -> RenderScene {
         skin_poses: Default::default(),
         shader_time: 0.,
         particles: vec![],
+        trails: Vec::new(),
         view_projection: camera(),
         items: (0..count)
             .map(|i| DrawItem {

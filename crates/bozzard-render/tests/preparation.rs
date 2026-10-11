@@ -38,6 +38,7 @@ fn scene() -> anyhow::Result<RenderScene> {
     Ok(RenderScene {
         skin_poses: Default::default(),
         particles: vec![],
+        trails: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],

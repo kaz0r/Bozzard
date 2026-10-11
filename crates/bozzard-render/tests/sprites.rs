@@ -31,6 +31,7 @@ fn atlas_sprites_and_screen_clipping_share_color_without_camera_or_display_effec
     let mut scene = RenderScene {
         skin_poses: Default::default(),
         particles: vec![],
+        trails: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],

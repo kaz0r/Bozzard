@@ -8,6 +8,8 @@ pub use temporal_settings::{MotionBlur, ScreenSpaceReflections, TemporalAntiAlia
 pub(crate) mod geometry;
 mod gpu_util;
 mod particles;
+mod trails;
+pub use trails::{TrailPoint, TrailRibbon};
 mod skinning;
 pub use skinning::{SkinData, SkinPose};
 mod reflections;
@@ -185,6 +187,8 @@ pub struct DrawItem {
 pub struct RenderScene {
     pub skin_poses: BTreeMap<u64, SkinPose>,
     pub particles: Vec<Particle>,
+    /// Trail Renderer ribbons, unlit, drawn after transparent surfaces and particles.
+    pub trails: Vec<TrailRibbon>,
     pub fog: FogSettings,
     pub gi: Option<IrradianceVolume>,
     pub lights: Vec<LocalLight>,
@@ -366,6 +370,8 @@ pub struct SceneRenderer {
     geometry: Option<geometry::GeometryBuffers>,
     motion_history: geometry::MotionHistory,
     particles: Option<particles::Particles>,
+    trails: Option<trails::Trails>,
+    trail_scratch: Vec<f32>,
     text: Option<text::TextRenderer>,
     text_idle_frames: u32,
     world_text: text::WorldCache,
@@ -922,6 +928,8 @@ impl SceneRenderer {
             geometry: None,
             motion_history: Default::default(),
             particles: None,
+            trails: None,
+            trail_scratch: Vec::new(),
             text: None,
             text_idle_frames: 0,
             world_text: Default::default(),
@@ -2849,6 +2857,13 @@ impl SceneRenderer {
                 self.stats.particle_descriptor_bytes,
             ) = particles.work();
         }
+        // Raw diagnostics bypass trails as they bypass particles.
+        let ribbons: &[TrailRibbon] = if raw { &[] } else { &scene.trails };
+        if !ribbons.is_empty() || self.trails.as_ref().is_some_and(|t| t.has_geometry()) {
+            let trails = self.trails.get_or_insert_with(|| trails::Trails::new(gpu));
+            self.stats.trail_triangles =
+                trails.prepare(gpu, ribbons, view_projection, &mut self.trail_scratch)?;
+        }
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
         let encode_started = std::time::Instant::now();
         if has_particles {
@@ -3128,6 +3143,27 @@ impl SceneRenderer {
                 &self.shadows.sample_binding,
                 transparent.len() as u32,
             );
+        }
+        if let Some(trails) = self.trails.as_ref().filter(|t| t.has_geometry()) {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("trail ribbons"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: self.display.hdr(),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth.as_ref().unwrap().view,
+                    depth_ops: None,
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            trails.draw(&mut pass);
         }
         self.display.draw(
             &mut encoder,

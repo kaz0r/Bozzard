@@ -29,6 +29,8 @@ pub struct FrameStats {
     /// Particle descriptors uploaded this frame, excluding small camera/sort uniforms.
     pub particle_descriptor_bytes: usize,
     pub particle_triangles: u64,
+    /// Triangles in this frame's Trail Renderer ribbons.
+    pub trail_triangles: u64,
     pub scene_items: usize,
     /// Distinct world draw items with a frustum-visible surface. Excludes screen HUD;
     /// GPU occlusion can reject additional objects after this CPU-side count.

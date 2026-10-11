@@ -424,6 +424,7 @@ impl Stage {
             skin_poses: Default::default(),
             shader_time: view.display_time,
             particles: vec![],
+            trails: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

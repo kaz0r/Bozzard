@@ -5,6 +5,7 @@ fn input() -> RenderScene {
     RenderScene {
         skin_poses: Default::default(),
         particles: vec![],
+        trails: Vec::new(),
         gi: None,
         shader_time: 0.,
         fog: Default::default(),
