@@ -40,7 +40,7 @@ impl LodTools {
             return false;
         };
         let mut generate = false;
-        egui::CollapsingHeader::new("GENERATE LODS").show(ui,|ui| {
+        crate::theme::Foldout::new(crate::icons::LAYERS, "Generate LODs").show(ui,|ui| {
             if mesh.skin.is_some() {ui.weak("Automatic LOD generation requires a static mesh.");return;}
             ui.label(format!("Base mesh: {} triangles",mesh.indices.len()/3));
             ui.horizontal(|ui| {ui.label("Levels");ui.add(egui::DragValue::new(&mut self.levels).range(1..=8));});

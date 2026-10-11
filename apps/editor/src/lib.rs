@@ -38,6 +38,7 @@ mod framing;
 mod gameplay_input;
 mod gi;
 mod hierarchy;
+mod icons;
 mod inspector;
 mod kennel;
 mod level_tools;
@@ -63,7 +64,11 @@ mod timeline_pane;
 mod viewport;
 mod widget_ui;
 
-fn clipped_selectable_row(ui: &mut egui::Ui, selected: bool, label: String) -> egui::Response {
+fn clipped_selectable_row(
+    ui: &mut egui::Ui,
+    selected: bool,
+    label: impl Into<egui::WidgetText>,
+) -> egui::Response {
     ui.add(
         egui::Button::selectable(selected, label)
             .truncate()
@@ -712,17 +717,12 @@ impl App {
         Ok(())
     }
     fn toolbar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("menu-bar")
+        let bar = egui::Panel::top("menu-bar")
             .frame(theme::bar())
             .show(ui, |ui| {
                 ui.add_enabled_ui(self.loading.is_none(), |ui| {
                     egui::MenuBar::new().ui(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("B")
-                                .size(20.0)
-                                .strong()
-                                .color(theme::GREEN),
-                        );
+                        theme::logo(ui);
                         ui.menu_button("File", |ui| {
                             if ui.button("New project…").clicked() {
                                 self.show_project_wizard();
@@ -853,39 +853,6 @@ impl App {
                                 );
                             });
                         });
-                        if ui
-                            .selectable_label(
-                                self.workspace.settings_visible && self.workspace.effects_page,
-                                "Effects",
-                            )
-                            .clicked()
-                        {
-                            self.workspace.settings_visible = true;
-                            self.workspace.effects_page = true;
-                            self.dock_focus = Some(docking::Pane::Settings);
-                        }
-                        if ui
-                            .selectable_label(
-                                self.workspace.debug_visible,
-                                if self.debug.recording {
-                                    "Debug · Recording"
-                                } else {
-                                    "Debug"
-                                },
-                            )
-                            .clicked()
-                        {
-                            self.workspace.debug_visible = !self.workspace.debug_visible;
-                            self.dock_focus = Some(docking::Pane::Debug);
-                        }
-                        if ui
-                            .selectable_label(self.workspace.kennel_visible, "Kennel")
-                            .on_hover_text("Browse and install packages from the Kennel store")
-                            .clicked()
-                        {
-                            self.workspace.kennel_visible = true;
-                            self.dock_focus = Some(docking::Pane::Kennel);
-                        }
                         ui.menu_button("View", |ui| {
                             if ui
                                 .checkbox(&mut self.workspace.hierarchy_visible, "Hierarchy")
@@ -980,99 +947,189 @@ impl App {
                             ui.label("Escape   Release / cancel / deselect");
                             ui.label("Drag files into the editor to import");
                         });
-                        ui.separator();
+                        theme::toolbar_divider(ui);
                         self.view_tabs(ui);
+                        self.transport(ui);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.weak("BOZZARD  /  EDITOR");
-                        });
-                    });
-                });
-            });
-        egui::Panel::top("scene-bar")
-            .frame(theme::bar())
-            .show(ui, |ui| {
-                ui.add_enabled_ui(self.loading.is_none(), |ui| {
-                    ui.horizontal(|ui| {
-                        let playing = self.editor.play.is_some();
-                        let left_width = (ui.available_width() * 0.5 - 46.0).max(0.0);
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(left_width, 24.0),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                ui.set_min_width(left_width);
-                                ui.colored_label(theme::ACCENT, "◇");
-                                ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(format!(
-                                            "{}{}",
-                                            self.editor.scene().name,
-                                            if self.editor.dirty() { " *" } else { "" }
-                                        ))
-                                        .strong(),
-                                    )
-                                    .truncate(),
-                                )
-                                .on_hover_text(self.editor.path.display().to_string());
-                            },
-                        );
-                        let play_button = ui
-                            .add_enabled(
-                                !playing
-                                    && self.loading.is_none()
-                                    && !self.editor.is_prefab_source(),
-                                egui::Button::new(egui::RichText::new("▶").color(theme::GREEN)),
-                            )
-                            .on_hover_text(
-                                "Play active scene · Other open scenes remain in the editor",
-                            );
-                        if play_button.clicked() {
-                            play_button.surrender_focus();
-                            self.start_play();
-                        }
-                        if ui
-                            .add_enabled(playing, egui::Button::new("■"))
-                            .on_hover_text("Stop · Escape")
-                            .clicked()
-                        {
-                            self.gameplay_controls.reset();
-                            self.stop_play();
-                        }
-                        self.blueprint_run_controls(ui);
-                        if self
-                            .editor
-                            .play
-                            .as_ref()
-                            .is_some_and(|p| p.multiplayer_active())
-                        {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.join_lobby)
-                                    .hint_text("Steam lobby ID")
-                                    .desired_width(150.),
-                            );
-                            if ui.button("Join lobby").clicked() {
-                                let result = self
-                                    .join_lobby
-                                    .trim()
-                                    .parse::<u64>()
-                                    .map_err(anyhow::Error::from)
-                                    .and_then(|id| {
-                                        self.editor.play.as_mut().unwrap().join_multiplayer(id)
-                                    });
-                                self.result(result);
+                            self.panel_toggles(ui);
+                            theme::toolbar_divider(ui);
+                            let playing = self.editor.play.is_some();
+                            if playing {
+                                theme::chip(
+                                    ui,
+                                    &theme::labeled(icons::PLAY_ARROW, "PLAYING"),
+                                    theme::GREEN,
+                                );
+                            } else {
+                                ui.label(
+                                    egui::RichText::new("EDIT")
+                                        .font(theme::bold(ui.ctx(), 10.5))
+                                        .color(theme::TEXT_MUTED),
+                                );
                             }
-                        }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
-                            ui.colored_label(
-                                if playing { theme::GREEN } else { theme::ACCENT },
-                                "●",
-                            );
+                            if self.editor.dirty() {
+                                ui.label(egui::RichText::new("●").size(9.0).color(theme::ACCENT))
+                                    .on_hover_text("Unsaved changes");
+                            }
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&self.editor.scene().name)
+                                        .font(theme::bold(ui.ctx(), 12.5)),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(self.editor.path.display().to_string());
                         });
                     });
                     #[cfg(feature = "factory")]
                     self.factory_controls(ui);
                 });
             });
+        if self.editor.play.is_some() {
+            // Play mode gets a green rule under the bar, visible from anywhere on screen.
+            ui.painter().hline(
+                bar.response.rect.x_range(),
+                bar.response.rect.bottom() - 1.0,
+                egui::Stroke::new(2.0, theme::GREEN),
+            );
+        }
+    }
+    /// Play, Stop and the Blueprint run controls, centred in the top bar when there is room.
+    fn transport(&mut self, ui: &mut egui::Ui) {
+        let id = egui::Id::new("transport-width");
+        let width: f32 = ui.ctx().data(|d| d.get_temp(id)).unwrap_or(80.0);
+        let center = ui.max_rect().center().x;
+        let gap = (center - width / 2.0 - ui.cursor().left()).max(12.0);
+        ui.add_space(gap);
+        let playing = self.editor.play.is_some();
+        let pill = egui::Frame::new()
+            .fill(theme::PANEL)
+            .stroke(egui::Stroke::new(1.0, theme::BORDER))
+            .corner_radius(6)
+            .inner_margin(egui::Margin::symmetric(3, 1))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let play_button = ui
+                        .add_enabled(
+                            !playing && self.loading.is_none() && !self.editor.is_prefab_source(),
+                            egui::Button::new(
+                                egui::RichText::new(icons::PLAY_ARROW).size(17.0).color(
+                                    if playing {
+                                        theme::TEXT_MUTED
+                                    } else {
+                                        theme::GREEN
+                                    },
+                                ),
+                            )
+                            .frame_when_inactive(false)
+                            .min_size(Vec2::new(30.0, 24.0)),
+                        )
+                        .on_hover_text(
+                            "Play active scene · Other open scenes remain in the editor",
+                        );
+                    if play_button.clicked() {
+                        play_button.surrender_focus();
+                        self.start_play();
+                    }
+                    if ui
+                        .add_enabled(
+                            playing,
+                            egui::Button::new(egui::RichText::new(icons::STOP).size(17.0).color(
+                                if playing {
+                                    theme::CORAL
+                                } else {
+                                    theme::TEXT_MUTED
+                                },
+                            ))
+                            .frame_when_inactive(false)
+                            .min_size(Vec2::new(30.0, 24.0)),
+                        )
+                        .on_hover_text("Stop · Escape")
+                        .clicked()
+                    {
+                        self.gameplay_controls.reset();
+                        self.stop_play();
+                    }
+                    self.blueprint_run_controls(ui);
+                    if self
+                        .editor
+                        .play
+                        .as_ref()
+                        .is_some_and(|p| p.multiplayer_active())
+                    {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.join_lobby)
+                                .hint_text("Steam lobby ID")
+                                .desired_width(150.),
+                        );
+                        if ui.button("Join lobby").clicked() {
+                            let result = self
+                                .join_lobby
+                                .trim()
+                                .parse::<u64>()
+                                .map_err(anyhow::Error::from)
+                                .and_then(|id| {
+                                    self.editor.play.as_mut().unwrap().join_multiplayer(id)
+                                });
+                            self.result(result);
+                        }
+                    }
+                });
+            })
+            .response;
+        let used = pill.rect.width();
+        if (used - width).abs() > 0.5 {
+            ui.ctx().data_mut(|d| d.insert_temp(id, used.max(1.0)));
+            ui.ctx().request_repaint();
+        }
+    }
+    /// Right-hand toggles for the panels people open most: effects, debug, Kennel.
+    fn panel_toggles(&mut self, ui: &mut egui::Ui) {
+        if theme::icon_button(
+            ui,
+            icons::PETS,
+            self.workspace.kennel_visible,
+            "Kennel · Browse and install packages from the Kennel store",
+        )
+        .clicked()
+        {
+            self.workspace.kennel_visible = true;
+            self.dock_focus = Some(docking::Pane::Kennel);
+        }
+        let debug = theme::icon_button(
+            ui,
+            icons::BUG_REPORT,
+            self.workspace.debug_visible,
+            if self.debug.recording {
+                "Debug · Profiler and console · Recording"
+            } else {
+                "Debug · Profiler and console"
+            },
+        );
+        if self.debug.recording {
+            ui.painter().circle_filled(
+                debug.rect.right_top() + Vec2::new(-5.0, 5.0),
+                3.0,
+                theme::CORAL,
+            );
+        }
+        if debug.clicked() {
+            self.workspace.debug_visible = !self.workspace.debug_visible;
+            self.dock_focus = Some(docking::Pane::Debug);
+        }
+        if theme::icon_button(
+            ui,
+            icons::TUNE,
+            self.workspace.settings_visible && self.workspace.effects_page,
+            "Effects · Post-processing and atmosphere",
+        )
+        .clicked()
+        {
+            self.workspace.settings_visible = true;
+            self.workspace.effects_page = true;
+            self.dock_focus = Some(docking::Pane::Settings);
+        }
     }
     #[cfg(feature = "factory")]
     fn factory_controls(&mut self, ui: &mut egui::Ui) {
@@ -1243,45 +1300,47 @@ impl App {
             });
     }
     fn view_tabs(&mut self, ui: &mut egui::Ui) {
-        let scene = ui.selectable_label(
-            !self.workspace.blueprints_visible && !self.workspace.shaders_visible,
-            "Scene",
+        let current = if self.workspace.shaders_visible {
+            2
+        } else if self.workspace.blueprints_visible {
+            1
+        } else {
+            0
+        };
+        let mut chosen = current;
+        theme::segmented(
+            ui,
+            &mut chosen,
+            &[
+                (icons::VIEW_IN_AR, "Scene"),
+                (icons::SCHEMA, "Blueprint"),
+                (icons::HUB, "Shader"),
+            ],
         );
-        if scene.clicked() {
-            self.workspace.blueprints_visible = false;
-            self.workspace.shaders_visible = false;
+        if chosen != current {
+            self.workspace.blueprints_visible = chosen == 1;
+            self.workspace.shaders_visible = chosen == 2;
             self.dock_focus = Some(docking::Pane::Scene);
-        }
-        let blueprint = ui.selectable_label(
-            self.workspace.blueprints_visible && !self.workspace.shaders_visible,
-            "Blueprint",
-        );
-        if blueprint.clicked() {
-            self.workspace.blueprints_visible = true;
-            self.dock_focus = Some(docking::Pane::Scene);
-            self.workspace.shaders_visible = false;
-        }
-        let shader = ui.selectable_label(self.workspace.shaders_visible, "Shader");
-        if shader.clicked() {
-            self.workspace.shaders_visible = true;
-            self.dock_focus = Some(docking::Pane::Scene);
-            self.workspace.blueprints_visible = false;
         }
     }
     fn scene_content(&mut self, ui: &mut egui::Ui) {
         if self.loading.is_some() {
             ui.disable();
         }
-        if self.workspace.shaders_visible {
+        if self.workspace.shaders_visible || self.workspace.blueprints_visible {
             if let Err(error) = self.sync_assets() {
                 self.result(Err(error));
             }
-            self.shader_ui(ui);
-        } else if self.workspace.blueprints_visible {
-            if let Err(error) = self.sync_assets() {
-                self.result(Err(error));
-            }
-            self.blueprint_ui(ui);
+            // The viewport runs edge to edge; the graph editors get a margin for their bars.
+            egui::Frame::new()
+                .inner_margin(egui::Margin::symmetric(8, 6))
+                .show(ui, |ui| {
+                    if self.workspace.shaders_visible {
+                        self.shader_ui(ui);
+                    } else {
+                        self.blueprint_ui(ui);
+                    }
+                });
         } else if let Err(error) = self.viewport(ui) {
             self.result(Err(error));
             ui.colored_label(
@@ -1729,7 +1788,17 @@ impl eframe::App for App {
         egui::Panel::bottom("status").frame(theme::bar()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let memory = self.residency.stats();
-                ui.menu_button("GPU assets", |ui| {
+                egui::containers::menu::MenuButton::from_button(
+                    egui::Button::new(
+                        egui::RichText::new(theme::labeled(
+                            icons::MEMORY,
+                            &format!("{:.0} MiB", memory.resident_bytes as f64 / 1048576.),
+                        ))
+                        .color(theme::TEXT_DIM),
+                    )
+                    .frame_when_inactive(false),
+                )
+                .ui(ui, |ui| {
                     ui.set_max_width(330.);
                     ui.label(format!(
                         "{} resident assets · {:.1} MiB",
@@ -1755,7 +1824,10 @@ impl eframe::App for App {
                             )
                         );
                     }
-                });
+                })
+                .0
+                .on_hover_text("GPU asset memory");
+                theme::toolbar_divider(ui);
                 if let Some(job) = &self.loading {
                     ui.spinner();
                     ui.label(if job.cancelled() {
@@ -1830,18 +1902,28 @@ impl eframe::App for App {
                     return;
                 }
                 if self.error {
-                    ui.colored_label(Color32::LIGHT_RED, &self.status);
+                    ui.colored_label(theme::CORAL, theme::labeled(icons::ERROR, &self.status));
                     if ui.button("Open console").clicked() {
                         self.workspace.debug_visible = true;
             self.dock_focus = Some(docking::Pane::Debug);
                         self.debug.show_console();
                     }
                 } else {
-                    ui.label(&self.status);
+                    ui.label(
+                        egui::RichText::new(theme::labeled(icons::CHECK, &self.status))
+                            .color(theme::TEXT_DIM),
+                    );
                 }
             });
         });
         let mut layout = std::mem::take(&mut self.workspace.docking);
+        layout.scene_title = if self.workspace.shaders_visible {
+            "Shader"
+        } else if self.workspace.blueprints_visible {
+            "Blueprint"
+        } else {
+            "Scene"
+        };
         if let Some(pane) = self.dock_focus.take() {
             layout.focus(pane);
         }
@@ -2273,7 +2355,7 @@ mod shortcut_tests {
                         let eye = ui
                             .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, visible))
                             .inner;
-                        let label = clipped_selectable_row(ui, selected, "Selected object".into());
+                        let label = clipped_selectable_row(ui, selected, "Selected object");
                         (disclosure.rect, eye.rect, label.rect)
                     });
                     rows.push((row.response.rect, row.inner));
@@ -2316,8 +2398,7 @@ mod shortcut_tests {
                         .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, true))
                         .inner
                         .hovered();
-                    label_hovered =
-                        clipped_selectable_row(ui, true, "Selected object".into()).hovered();
+                    label_hovered = clipped_selectable_row(ui, true, "Selected object").hovered();
                 });
             },
         );
@@ -2348,8 +2429,8 @@ mod shortcut_tests {
                             .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, true))
                             .inner
                             .clicked() as usize;
-                        label_clicks += clipped_selectable_row(ui, true, "Selected object".into())
-                            .clicked() as usize;
+                        label_clicks +=
+                            clipped_selectable_row(ui, true, "Selected object").clicked() as usize;
                     });
                 },
             );

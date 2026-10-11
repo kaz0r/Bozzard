@@ -71,7 +71,7 @@ impl App {
         ui: &mut egui::Ui,
         object: &mut bozzard_scene::Object,
     ) {
-        egui::CollapsingHeader::new("SHADER GRAPH")
+        crate::theme::Foldout::new(crate::icons::HUB, "Shader graph")
             .id_salt((&object.id, "shader-graph"))
             .default_open(object.shader_graph.is_some())
             .show(ui, |ui| {

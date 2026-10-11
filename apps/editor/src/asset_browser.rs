@@ -207,7 +207,6 @@ impl AssetBrowser {
                 && (editor.selected_surface().is_none() || asset.kind == AssetKind::Image)
         };
 
-        super::theme::panel_title(ui, "Content Browser");
         ui.horizontal(|ui| {
             ui.weak("Assets");
             ui.weak("/");

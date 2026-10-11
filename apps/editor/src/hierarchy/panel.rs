@@ -217,7 +217,6 @@ impl App {
     }
 
     fn hierarchy_toolbar(&mut self, ui: &mut egui::Ui) {
-        crate::theme::panel_title(ui, "Scene Hierarchy");
         ui.horizontal(|ui| {
             ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                 ui.menu_button("+ Create", |ui| {
@@ -372,18 +371,20 @@ impl App {
                 return;
             }
 
-            let kind = if object.camera.is_some() {
-                "◉"
-            } else if object.drawable.is_some() {
-                "◇"
-            } else {
-                "·"
-            };
+            let (icon, tint) = crate::theme::object_icon(object, expandable);
+            let mut label = egui::text::LayoutJob::default();
+            let font = egui::TextStyle::Body.resolve(ui.style());
+            label.append(icon, 0.0, egui::TextFormat::simple(font.clone(), tint));
+            label.append(
+                &object.name,
+                6.0,
+                egui::TextFormat::simple(font, Color32::PLACEHOLDER),
+            );
             let response = crate::clipped_selectable_row(
                 ui,
                 self.hierarchy_state.is_selected(&object.id)
                     && self.editor.selected_surface().is_none(),
-                format!("{kind} {}", object.name),
+                label,
             )
             .interact(if can_reparent {
                 Sense::click_and_drag()
@@ -400,7 +401,7 @@ impl App {
                     ui.painter().rect_stroke(
                         response.rect,
                         2.0,
-                        egui::Stroke::new(1.5, Color32::LIGHT_BLUE),
+                        egui::Stroke::new(1.5, crate::theme::ACCENT),
                         egui::StrokeKind::Inside,
                     );
                 }
