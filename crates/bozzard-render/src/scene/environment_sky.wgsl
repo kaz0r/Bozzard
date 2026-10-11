@@ -6,12 +6,19 @@ struct SkyVertex { @builtin(position) position: vec4<f32>, @location(0) ndc: vec
 fn star_hash(cell: vec2<f32>) -> f32 {
     return fract(sin(dot(cell,vec2<f32>(127.1,311.7)))*43758.5453);
 }
-fn stars(uv: vec2<f32>) -> vec3<f32> {
+// A screen derivative of the star field's coordinates, with the azimuth's jump from
+// +pi to -pi (due west) unwrapped; otherwise every pixel along that seam would get a
+// huge antialiasing width and the stars there would smear into a vertical line.
+fn unwrapped(v: vec2<f32>) -> vec2<f32> {
+    let period = 240.0*3.14159265;
+    return abs(vec2<f32>(v.x-period*round(v.x/period),v.y));
+}
+fn stars(uv: vec2<f32>, footprint: vec2<f32>) -> vec3<f32> {
     let cell = floor(uv);
     let seed = star_hash(cell);
     let center = vec2<f32>(star_hash(cell+17.0),star_hash(cell+59.0))*0.6+0.2;
     let radius = mix(0.013,0.027,star_hash(cell+83.0));
-    let aa = max(length(fwidth(uv))*0.5,0.001);
+    let aa = max(length(footprint)*0.5,0.001);
     let point = 1.0-smoothstep(radius-aa,radius+aa,length(fract(uv)-center));
     let brightness = select(0.0,mix(0.35,1.0,seed)*point,seed>0.45);
     return mix(vec3<f32>(0.62,0.76,1.0),vec3<f32>(1.0,0.91,0.75),star_hash(cell+101.0))*brightness;
@@ -29,7 +36,8 @@ fn stars(uv: vec2<f32>) -> vec3<f32> {
         // pan/zoom instead of collapsing the entire sky onto a single star sample.
         var uv = vec2<f32>(atan2(d.z,d.x),asin(clamp(d.y,-1.0,1.0)))*120.0;
         if abs(near.w-far.w) < 0.00001 { uv = in.position.xy/52.0; }
-        color += stars(uv)*environment.horizon.w;
+        let footprint = unwrapped(dpdx(uv))+unwrapped(dpdy(uv));
+        color += stars(uv,footprint)*environment.horizon.w;
     }
     return vec4<f32>(color,1.0);
 }
