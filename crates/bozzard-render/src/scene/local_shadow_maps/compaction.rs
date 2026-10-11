@@ -9,6 +9,8 @@ struct Entry {
     buffer: wgpu::Buffer,
     binding: wgpu::BindGroup,
     texture: TextureKind,
+    /// The bound view: replacing an asset keeps its key but retires the view.
+    view: wgpu::TextureView,
     bytes: Vec<u8>,
 }
 pub(in crate::scene) struct Plan {
@@ -107,6 +109,11 @@ impl Cache {
         debug_assert!(!indices.is_empty() && indices.len() <= instancing::MAX_SHADOW_INSTANCES);
         let mut written = 0;
         let texture = &renderer.objects[indices[0]].texture;
+        // Entries outlive the frames that drew their casters, so compare the
+        // view itself, as render bundles and merged world text do.
+        let view = renderer
+            .texture_view(texture)
+            .expect("validated compact shadow texture");
         let mut allocation = false;
         if let std::collections::btree_map::Entry::Vacant(entry) = self.entries.entry(slot) {
             allocation = true;
@@ -116,18 +123,20 @@ impl Cache {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            let binding = binding(renderer, device, texture, &buffer);
+            let binding = binding(renderer, device, texture, view, &buffer);
             entry.insert(Entry {
                 buffer,
                 binding,
                 texture: texture.clone(),
+                view: view.clone(),
                 bytes: Vec::new(),
             });
         }
         let entry = self.entries.get_mut(&slot).unwrap();
-        if entry.texture != *texture {
-            entry.binding = binding(renderer, device, texture, &entry.buffer);
+        if entry.texture != *texture || entry.view != *view {
+            entry.binding = binding(renderer, device, texture, view, &entry.buffer);
             entry.texture = texture.clone();
+            entry.view = view.clone();
         }
         let mut bytes = Vec::with_capacity(indices.len() * 96);
         for &index in indices {
@@ -180,6 +189,7 @@ fn binding(
     renderer: &SceneRenderer,
     device: &wgpu::Device,
     texture: &TextureKind,
+    view: &wgpu::TextureView,
     buffer: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     let sampler = match texture {
@@ -197,11 +207,7 @@ fn binding(
             },
             wgpu::BindGroupEntry {
                 binding: 1,
-                resource: wgpu::BindingResource::TextureView(
-                    renderer
-                        .texture_view(texture)
-                        .expect("validated compact shadow texture"),
-                ),
+                resource: wgpu::BindingResource::TextureView(view),
             },
             wgpu::BindGroupEntry {
                 binding: 2,

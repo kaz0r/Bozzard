@@ -152,6 +152,11 @@ asset, including attachments spawned while compilation was in progress. It does 
 results. Active multiplayer Play rejects live replacement; all peers must stop and restart with
 the same script revision.
 
+Overlap sets and solid contacts are tracked only while a loaded script has a hook that uses them.
+A replacement that adds the scene's first overlap hook (`on_object_enter`, `on_object_exit`,
+`on_overlap_enter` or `on_overlap_exit`) or its first `on_collision_enter` therefore reports
+objects that already overlap or touch as entering on its first tick.
+
 For completion and help, use `bozzard_scene::script_function_descriptions()` and
 `bozzard_scene::script_hook_signatures()` instead of a separate handwritten function catalog.
 The existing `script_hook_descriptions()` API exposes the same names with argument counts.
@@ -232,6 +237,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `quit_game()` | requests Exit: closes the native player or stops editor Play; also available to script scenes without Game Flow |
 | `set_camera_size(target, size)` | sets an orthographic camera's vertical world span; positive finite size, smaller values zoom in |
 | `load_scene(name)`, `add_scene(name)`, `restart_scene()`, `save_game(slot)`, `load_game(slot)` | runtime scene control |
+| `set_window_mode_setting`, `set_window_size_setting`, `set_vsync_setting`, `set_quality_setting`, `set_volume_setting`, `apply_settings()`, `save_settings()`, `reset_settings()` | edit, apply, save or reset [player settings](player-settings.md); `player_settings()` and `get_*_setting` read them, including this tick's earlier edits |
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |

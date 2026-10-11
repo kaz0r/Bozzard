@@ -298,6 +298,61 @@ fn retained_bundles_replay_exact_pixels_and_rebuild_when_resources_or_ranges_cha
     Ok(())
 }
 #[test]
+fn live_particles_keep_retained_opaque_commands() -> anyhow::Result<()> {
+    // Particles interleave with transparent surfaces in their own pass; the
+    // opaque surfaces still replay retained commands, with identical pixels.
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    renderers[0].set_render_bundles_enabled(false);
+    renderers[0].set_native_multi_draw_enabled(false);
+    let mut scene = scene(192);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        let id = format!("particle-material-{i}");
+        // Every seventh surface is translucent and drawn between particles.
+        let alpha = if i % 7 == 3 { 140 } else { 255 };
+        for renderer in &mut renderers {
+            renderer.upload_image(&gpu, &id, 1, 1, &[i as u8, 255 - i as u8, 70, alpha])?;
+        }
+        item.material.texture = TextureKind::Imported(id);
+    }
+    scene.particles = (0..96)
+        .map(|i| Particle {
+            simulation: None,
+            id: i + 1,
+            position: Vec3::new(
+                (i % 12) as f32 * 1.1,
+                (i / 12) as f32 * 1.6,
+                if i % 2 == 0 { -4. } else { -6. },
+            ),
+            velocity: Vec3::new(0., 0.3, 0.),
+            size: 0.9,
+            rotation: i as f32 * 0.2,
+            color: [0.9, 0.7, 0.4],
+            opacity: 0.6,
+            kind: ParticleKind::Smoke,
+            softness: 0.2,
+            trail_length: 0.,
+            seed: (i % 13) as f32 / 13.,
+        })
+        .collect();
+    for frame in 0..3 {
+        scene.display.time_seconds = frame as f32 / 60.;
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    let stats = renderers[1].frame_stats();
+    assert_eq!(stats.particles, 96);
+    assert!(
+        stats.render_bundle_replays + stats.multi_draw_indirect_runs > 0,
+        "opaque commands are retained or indirect"
+    );
+    assert_eq!(renderers[0].frame_stats().render_bundle_replays, 0);
+    Ok(())
+}
+#[test]
 fn native_multi_draw_retains_nonzero_first_instance_and_dirty_arguments() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
     let mut renderers = std::array::from_fn(|_| {

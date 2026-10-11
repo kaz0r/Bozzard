@@ -37,6 +37,7 @@ pub(super) fn compile_source(
     Ok(Arc::new(CompiledScript {
         hook_ast: ast.clone_functions_only(),
         ast,
+        listens_overlap: OVERLAP_HOOKS.iter().any(|hook| hooks.contains_key(*hook)),
         hooks,
         fingerprint,
         source: Arc::from(source),

@@ -2,6 +2,8 @@ use super::*;
 #[derive(Default)]
 pub(super) struct Scratch {
     pub bounds: Vec<[Vec3; 2]>,
+    /// Index counts beside `bounds`, from the same per-surface mesh lookup.
+    pub counts: Vec<u32>,
     pub visible: Vec<bool>,
     pub frustum: Vec<bool>,
     pub items: Vec<bool>,
@@ -19,6 +21,7 @@ impl Scratch {
             }
         }
         compact(&mut self.bounds);
+        compact(&mut self.counts);
         compact(&mut self.visible);
         compact(&mut self.frustum);
         compact(&mut self.items);
@@ -29,6 +32,7 @@ impl Scratch {
     }
     pub fn bytes(&self) -> usize {
         self.bounds.capacity() * std::mem::size_of::<[Vec3; 2]>()
+            + self.counts.capacity() * std::mem::size_of::<u32>()
             + self.visible.capacity()
             + self.frustum.capacity()
             + self.items.capacity()

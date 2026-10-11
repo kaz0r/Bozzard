@@ -11,7 +11,7 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/atmosphere-lab.j
 Click **Effects** in the top menu. The right panel has the common controls together:
 
 - **Apply preset** chooses Neutral, Cinematic, Bonfire, Neon, or Noir. Non-neutral looks also enable TAA, motion blur, and reflections; lens and exposure adaptation remain opt-in.
-- **Live preview** runs particles, wind, shimmer, grain, and eye adaptation in an isolated preview. It starts particle effects with a short warm-up. Uncheck it to pause. Preview does not run scripts, gravity, or gameplay, and never writes runtime particles to the scene. **Play** runs the full simulation.
+- **Live preview** runs particles, wind, shimmer, grain, and eye adaptation in an isolated preview. It starts particle effects with a short warm-up. Edits continue the running particles and effect clock while the scene keeps the same emitters; adding or removing an emitter starts the preview again with a fresh warm-up. Uncheck it to pause. Preview does not run scripts, gravity, or gameplay, and never writes runtime particles to the scene. **Play** runs the full simulation.
 - **Before** temporarily shows the base viewport with default display mapping, without particles or fog. It does not edit the document.
 - **Focus selected object** sets the focus distance using the editor camera. Aperture controls the amount of defocus.
 - **Make selected surface wet** applies a smooth dielectric material to a selected mesh and enables reflections. Mesh primitives and imported meshes both support roughness/metallic factors.

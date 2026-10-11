@@ -17,6 +17,7 @@ pub struct OpenScenes {
     hidden: BTreeSet<SceneId>,
     hidden_objects: BTreeMap<SceneId, BTreeSet<String>>,
     hidden_cache: RefCell<BTreeMap<SceneId, HiddenObjects>>,
+    qualified: RefCell<BTreeMap<SceneId, QualifiedDocument>>,
     view: Option<SceneView>,
 }
 
@@ -30,6 +31,7 @@ impl Default for OpenScenes {
             hidden: BTreeSet::new(),
             hidden_objects: BTreeMap::new(),
             hidden_cache: Default::default(),
+            qualified: Default::default(),
             view: None,
         }
     }
@@ -308,7 +310,7 @@ impl OpenScenes {
                 scene.validate()?;
                 let generation = self.view.as_ref().map_or(1, |v| v.editor.revision + 1);
                 let mut editor =
-                    Editor::from_loaded(scene, current.path.clone(), current.assets.clone());
+                    Editor::authoring_view(scene, current.path.clone(), current.assets.clone());
                 editor.revision = generation;
                 editor.selected = current.selected.clone();
                 self.view = Some(SceneView {
@@ -320,65 +322,70 @@ impl OpenScenes {
                 });
                 return Ok(());
             }
-            let mut scene = current.scene.clone();
-            scene.objects.clear();
-            scene.assets.clear();
-            scene.prefabs.clear();
-            scene.views.clear();
-            scene.blackboard.clear();
-            scene.runtime_scenes.clear();
-            scene.runtime_scene_sources.clear();
-            // GI baked for one document cannot describe their combined geometry.
-            scene.gi = Default::default();
+            // The active document's settings without copying its objects. Listing every
+            // field keeps a new document field from silently joining the combined view.
+            let source = &current.scene;
+            let mut scene = Scene {
+                runtime_scenes: BTreeMap::new(),
+                runtime_scene_sources: BTreeMap::new(),
+                blackboard: Default::default(),
+                game_flow: source.game_flow.clone(),
+                prefabs: BTreeMap::new(),
+                fog: source.fog,
+                // GI baked for one document cannot describe their combined geometry.
+                gi: Default::default(),
+                environment: source.environment,
+                display: source.display,
+                post_process_volumes: source.post_process_volumes.clone(),
+                lighting: source.lighting,
+                version: source.version,
+                name: source.name.clone(),
+                views: BTreeMap::new(),
+                objects: Vec::new(),
+                assets: BTreeMap::new(),
+            };
             let mut owners = BTreeMap::new();
             let mut entries = Vec::new();
-            for (id, editor) in self.documents(current).filter(|(id, e)| {
-                if current.is_prefab_source() {
-                    *id == self.active
-                } else {
-                    !e.is_prefab_source()
-                }
-            }) {
+            let documents: Vec<_> = self
+                .documents(current)
+                .filter(|(id, e)| {
+                    if current.is_prefab_source() {
+                        *id == self.active
+                    } else {
+                        !e.is_prefab_source()
+                    }
+                })
+                .collect();
+            let mut cache = self.qualified.borrow_mut();
+            cache.retain(|id, _| documents.iter().any(|(open, _)| open == id));
+            for (id, editor) in documents {
                 let visible = self.visible(id);
-                let hidden_objects = self.hidden_objects_in(id, editor);
-                let names: BTreeMap<_, _> = editor
-                    .scene
-                    .objects
-                    .iter()
-                    .map(|o| (o.id.clone(), qualified(id, &o.id)))
-                    .collect();
-                let assets: BTreeMap<_, _> = editor
-                    .scene
-                    .assets
-                    .keys()
-                    .map(|a| (a.clone(), qualified(id, a)))
-                    .collect();
+                let hidden = self.hidden_objects_in(id, editor);
+                let source = Arc::downgrade(&editor.scene_snapshot());
+                // Renaming a document's objects depends only on its content, its ID and
+                // what is hidden, so an edit elsewhere reuses this document's objects.
+                if !cache.get(&id).is_some_and(|document| {
+                    document.source.ptr_eq(&source)
+                        && document.visible == visible
+                        && document.hidden == hidden
+                }) {
+                    cache.insert(
+                        id,
+                        QualifiedDocument::new(id, editor, source, visible, hidden)?,
+                    );
+                }
+                let document = &cache[&id];
                 for entry in editor.assets.entries().filter(|_| visible) {
                     entries.push((qualified(id, &entry.id), entry));
                 }
-                for (name, source) in editor.scene.assets.iter().filter(|_| visible) {
-                    scene.assets.insert(assets[name].clone(), source.clone());
-                }
-                for object in &editor.scene.objects {
-                    let mut object = object.clone();
-                    let object_hidden = hidden_objects.contains(&object.id);
-                    owners.insert(names[&object.id].clone(), (id, object.id.clone()));
-                    object.remap_blueprint_objects(&names);
-                    object.remap_assets(&assets);
-                    object.id = names[&object.id].clone();
-                    object.parent = object.parent.map(|p| names[&p].clone());
-                    // This document exists only for authoring extraction and picking.
-                    // Gameplay remains in each source and runs via Play active scene.
-                    object.prepare_authoring_preview(visible && !object_hidden)?;
-                    scene.objects.push(object);
-                }
-                for (layer, camera) in &editor.scene.views {
-                    scene
-                        .views
-                        .entry(*layer)
-                        .or_insert_with(|| names[camera].clone());
+                scene.assets.extend(document.assets.iter().cloned());
+                scene.objects.extend(document.objects.iter().cloned());
+                owners.extend(document.owners.iter().cloned());
+                for (layer, camera) in &document.views {
+                    scene.views.entry(*layer).or_insert_with(|| camera.clone());
                 }
             }
+            drop(cache);
             if current.is_prefab_source() {
                 // Inspection cameras never enter the source file or its history.
                 let cameras = bozzard_runtime::scene_document()?;
@@ -397,7 +404,7 @@ impl OpenScenes {
             scene.validate()?;
             let assets = AssetStore::shared_catalog(entries)?;
             let generation = self.view.as_ref().map_or(1, |v| v.editor.revision + 1);
-            let mut editor = Editor::from_loaded(scene, current.path.clone(), assets);
+            let mut editor = Editor::authoring_view(scene, current.path.clone(), assets);
             editor.revision = generation;
             self.view = Some(SceneView {
                 stamp,
@@ -483,6 +490,73 @@ struct HiddenObjects {
     source: Weak<Scene>,
     objects: Arc<BTreeSet<String>>,
 }
+/// One document's contribution to a combined view, with IDs qualified by its scene.
+struct QualifiedDocument {
+    source: Weak<Scene>,
+    visible: bool,
+    hidden: Arc<BTreeSet<String>>,
+    objects: Vec<Object>,
+    assets: Vec<(String, AssetSource)>,
+    owners: Vec<(String, (SceneId, String))>,
+    views: Vec<(Layer, String)>,
+}
+impl QualifiedDocument {
+    fn new(
+        id: SceneId,
+        editor: &Editor,
+        source: Weak<Scene>,
+        visible: bool,
+        hidden: Arc<BTreeSet<String>>,
+    ) -> Result<Self> {
+        let names: BTreeMap<_, _> = editor
+            .scene
+            .objects
+            .iter()
+            .map(|o| (o.id.clone(), qualified(id, &o.id)))
+            .collect();
+        let assets: BTreeMap<_, _> = editor
+            .scene
+            .assets
+            .keys()
+            .map(|a| (a.clone(), qualified(id, a)))
+            .collect();
+        let mut owners = Vec::with_capacity(editor.scene.objects.len());
+        let mut objects = Vec::with_capacity(editor.scene.objects.len());
+        for object in &editor.scene.objects {
+            let mut object = object.clone();
+            let object_hidden = hidden.contains(&object.id);
+            owners.push((names[&object.id].clone(), (id, object.id.clone())));
+            object.remap_blueprint_objects(&names);
+            object.remap_assets(&assets);
+            object.id = names[&object.id].clone();
+            object.parent = object.parent.map(|p| names[&p].clone());
+            // This document exists only for authoring extraction and picking.
+            // Gameplay remains in each source and runs via Play active scene.
+            object.prepare_authoring_preview(visible && !object_hidden)?;
+            objects.push(object);
+        }
+        Ok(Self {
+            assets: editor
+                .scene
+                .assets
+                .iter()
+                .filter(|_| visible)
+                .map(|(name, source)| (assets[name].clone(), source.clone()))
+                .collect(),
+            views: editor
+                .scene
+                .views
+                .iter()
+                .map(|(layer, camera)| (*layer, names[camera].clone()))
+                .collect(),
+            source,
+            visible,
+            hidden,
+            objects,
+            owners,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -554,6 +628,63 @@ mod tests {
             &shown,
             &open.hidden_objects_in(open.active(), &editor)
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn combined_views_reuse_unchanged_documents_and_match_a_full_rebuild() -> Result<()> {
+        let mut editor = Editor::new(eye_scene(), Path::new("work/eye-combined-a.json"))?;
+        let mut open = OpenScenes::default();
+        let first = open.active();
+        let second = open.add(
+            &mut editor,
+            Editor::new(eye_scene(), Path::new("work/eye-combined-b.json"))?,
+        )?;
+        let third = open.add(
+            &mut editor,
+            Editor::new(eye_scene(), Path::new("work/eye-combined-c.json"))?,
+        )?;
+        let ids = [first, second, third];
+        let mut seed = 7_u64;
+        for step in 0..60 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let id = ids[(seed >> 33) as usize % 3];
+            match (seed >> 40) % 5 {
+                0 => open.activate(&mut editor, id)?,
+                1 => open.set_visible(id, !open.visible(id)),
+                2 => open.set_object_visible(id, "front", (seed >> 50).is_multiple_of(2)),
+                3 if editor.undo_label().is_some() => editor.undo()?,
+                _ => {
+                    let mut scene = editor.scene().clone();
+                    scene
+                        .objects
+                        .iter_mut()
+                        .find(|o| o.id == "rear")
+                        .unwrap()
+                        .transform
+                        .translation[0] = step as f32;
+                    editor.apply("Move", scene)?;
+                }
+            }
+            open.sync_view(&editor)?;
+            let view = open.view(&editor);
+            let scene = view.scene().clone();
+            assert!(!view.dirty(), "views are never saved");
+            // Drop every cached document and rebuild the view from scratch.
+            open.qualified.borrow_mut().clear();
+            open.view = None;
+            open.sync_view(&editor)?;
+            assert_eq!(open.view(&editor).scene(), &scene, "step {step}");
+            assert_eq!(open.qualified.borrow().len(), 3);
+        }
+        // An edit renames only the edited document's objects again.
+        let other = ids.into_iter().find(|id| *id != open.active()).unwrap();
+        let reused = open.qualified.borrow()[&other].objects.as_ptr();
+        let mut scene = editor.scene().clone();
+        scene.objects[0].name.push_str(" edited");
+        editor.apply("Rename", scene)?;
+        open.sync_view(&editor)?;
+        assert_eq!(open.qualified.borrow()[&other].objects.as_ptr(), reused);
         Ok(())
     }
 

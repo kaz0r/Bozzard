@@ -467,7 +467,7 @@ fn prepare_bindings(
             bindings.push(InstanceBinding {
                 buffer,
                 binding: bind,
-                texture: texture.clone(),
+                texture: Some(texture.clone()),
                 bytes: Vec::with_capacity(SHADOW_BUFFER_BYTES),
                 revisions: Vec::new(),
                 parameter_buffer: None,
@@ -476,9 +476,9 @@ fn prepare_bindings(
                 first_instance: 0,
             });
             renderer.stats.shadow_instance_buffer_allocations += 1;
-        } else if bindings[slot].texture != *texture {
+        } else if bindings[slot].texture.as_ref() != Some(texture) {
             bindings[slot].binding = binding(renderer, gpu, texture, &bindings[slot].buffer)?;
-            bindings[slot].texture = texture.clone();
+            bindings[slot].texture = Some(texture.clone());
         }
         let current = &mut bindings[slot];
         let old_len = current.bytes.len();

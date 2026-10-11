@@ -241,6 +241,45 @@ fn move_box_sweeps_against_a_rotated_wall_at_high_speed() {
 }
 
 #[test]
+fn consecutive_moves_see_earlier_movers_and_external_edits() {
+    let child = r#"{"id":"b-arm","name":"b-arm","parent":"b","transform":{"translation":[0,1,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}"#;
+    let scene = collision_scene(&format!(
+        "{},{},{},{child}",
+        box_object("a", [0.0, 0.0, 0.0]),
+        box_object("b", [0.0, 0.0, 10.0]),
+        box_object("wall", [20.0, 0.0, 0.0])
+    ));
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world).unwrap();
+
+    instance
+        .move_box(&mut world, "a", Vec3::new(0.0, 0.0, 5.0))
+        .unwrap();
+    // The second mover meets the first at its new pose, not where the scene began.
+    let result = instance
+        .move_box(&mut world, "b", Vec3::new(0.0, 0.0, -10.0))
+        .unwrap();
+    assert_eq!(result.contacts, ["a"]);
+    assert_vec3_near(center(&instance, &world, "b"), Vec3::new(0.0, 0.0, 7.0));
+    assert_vec3_near(center(&instance, &world, "b-arm"), Vec3::new(0.0, 1.0, 7.0));
+    // b carries a child, so its move rebuilt the shared geometry; a still meets b.
+    let result = instance
+        .move_box(&mut world, "a", Vec3::new(0.0, 0.0, 10.0))
+        .unwrap();
+    assert_eq!(result.contacts, ["b"]);
+    assert_vec3_near(center(&instance, &world, "a"), Vec3::new(0.0, 0.0, 5.0));
+
+    // An edit outside move_box is visible to the next move.
+    let wall = instance.entity("wall").unwrap();
+    world.get_mut::<Transform>(wall).unwrap().translation = [0.0, 0.0, 0.0];
+    let result = instance
+        .move_box(&mut world, "a", Vec3::new(0.0, 0.0, -10.0))
+        .unwrap();
+    assert_eq!(result.contacts, ["wall"]);
+    assert_vec3_near(center(&instance, &world, "a"), Vec3::new(0.0, 0.0, 2.0));
+}
+
+#[test]
 fn move_box_errors_transactionally_for_invalid_delta_or_missing_collider() {
     let scene = collision_scene(
         r#"{

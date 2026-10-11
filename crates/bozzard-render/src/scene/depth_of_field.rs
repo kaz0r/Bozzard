@@ -7,7 +7,8 @@ struct Targets {
     far: wgpu::TextureView,
     near: wgpu::TextureView,
     color: wgpu::TextureView,
-    bindings: [wgpu::BindGroup; 3],
+    /// Pass bindings for each recent color source and scene depth.
+    bindings: gpu_util::Recent<[wgpu::TextureView; 2], [wgpu::BindGroup; 3]>,
 }
 pub(super) struct Dof {
     pipelines: [wgpu::RenderPipeline; 3],
@@ -151,43 +152,45 @@ impl Dof {
         hdr: &wgpu::TextureView,
         settings: DepthOfField,
         frame: &FrameInput<'_>,
-        source_changed: bool,
-    ) -> Result<bool> {
+        created: &mut usize,
+    ) -> Result<()> {
         if frame.raw || !settings.enabled || settings.max_blur_radius == 0. {
-            return Ok(self.targets.take().is_some());
+            self.targets = None;
+            return Ok(());
         }
         let depth = frame.depth.context("depth of field requires scene depth")?;
-        let changed = self.targets.as_ref().is_none_or(|t| t.size != frame.size);
-        if changed {
+        if self.targets.as_ref().is_none_or(|t| t.size != frame.size) {
             let half = frame.size.map(|v| v.div_ceil(2));
             let prefiltered =
                 gpu_util::color_texture(gpu, half, "half-resolution color and circle of confusion");
             let far = gpu_util::color_texture(gpu, half, "far bokeh");
             let near = gpu_util::color_texture(gpu, half, "near bokeh and coverage");
             let color = gpu_util::color_texture(gpu, frame.size, "HDR after depth of field");
-            let bindings = [
-                self.binding(gpu, hdr, depth, [&self.dummy; 3]),
-                self.binding(gpu, hdr, depth, [&prefiltered, &self.dummy, &self.dummy]),
-                self.binding(gpu, hdr, depth, [&self.dummy, &far, &near]),
-            ];
             self.targets = Some(Targets {
                 size: frame.size,
                 prefiltered,
                 far,
                 near,
                 color,
-                bindings,
+                bindings: Default::default(),
             });
         }
-        if source_changed && !changed {
-            let t = self.targets.as_ref().unwrap();
-            let bindings = [
+        let mut targets = self.targets.take().unwrap();
+        if targets.bindings.select([hdr.clone(), depth.clone()], |_| {
+            [
                 self.binding(gpu, hdr, depth, [&self.dummy; 3]),
-                self.binding(gpu, hdr, depth, [&t.prefiltered, &self.dummy, &self.dummy]),
-                self.binding(gpu, hdr, depth, [&self.dummy, &t.far, &t.near]),
-            ];
-            self.targets.as_mut().unwrap().bindings = bindings;
+                self.binding(
+                    gpu,
+                    hdr,
+                    depth,
+                    [&targets.prefiltered, &self.dummy, &self.dummy],
+                ),
+                self.binding(gpu, hdr, depth, [&self.dummy, &targets.far, &targets.near]),
+            ]
+        }) {
+            *created += 3;
         }
+        self.targets = Some(targets);
         let inverse = frame.view_projection.inverse();
         let origin = inverse.project_point3(Vec3::ZERO);
         let forward = (inverse.project_point3(Vec3::new(0., 0., 0.5)) - origin).normalize();
@@ -214,7 +217,7 @@ impl Dof {
                 0.,
             ])),
         );
-        Ok(changed)
+        Ok(())
     }
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.targets.as_ref().map(|t| &t.color)
@@ -247,7 +250,7 @@ impl Dof {
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipelines[i]);
-            pass.set_bind_group(0, &t.bindings[i], &[]);
+            pass.set_bind_group(0, &t.bindings.current().unwrap()[i], &[]);
             pass.draw(0..3, 0..1);
         }
     }

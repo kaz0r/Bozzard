@@ -445,7 +445,10 @@ mod tests {
             }
         }
         scene.items.clear();
-        assert!(coordinates(&capture(&mut renderer, &scene, 320, 240)?).is_empty());
+        for _ in 0..=OVERLAY_IDLE_FRAMES {
+            assert!(renderer.text.is_some() && renderer.hud.is_some());
+            assert!(coordinates(&capture(&mut renderer, &scene, 320, 240)?).is_empty());
+        }
         assert!(renderer.text.is_none() && renderer.hud.is_none());
         println!("hud_gpu_ok anchoring resize camera_effect_isolation dynamic_text cleanup");
         Ok(())

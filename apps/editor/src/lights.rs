@@ -17,7 +17,7 @@ impl App {
         let hidden = self
             .open_scenes
             .hidden_objects_in(self.open_scenes.active(), &self.editor);
-        let matrices = self.editor.scene().global_transforms()?;
+        let matrices = self.editor.world_transforms()?;
         let painter = ui.painter().with_clip_rect(rect);
         let project = |v: glam::Vec4| {
             let p = v.truncate() / v.w;
@@ -27,7 +27,7 @@ impl App {
             )
         };
         let mut picked: Option<(f32, String)> = None;
-        for object in &self.editor.scene().objects {
+        for (object, &matrix) in self.editor.scene().objects.iter().zip(matrices.matrices()) {
             if hidden.contains(&object.id) {
                 continue;
             }
@@ -37,7 +37,7 @@ impl App {
                 projection,
                 pointer,
                 object,
-                matrices[&object.id],
+                matrix,
                 self.editor.selected.as_deref() == Some(&object.id),
             )? && picked
                 .as_ref()
@@ -49,7 +49,7 @@ impl App {
                 continue;
             }
             let Some(light) = object.light else { continue };
-            let world = light.at(matrices[&object.id])?;
+            let world = light.at(matrix)?;
             let origin = Vec3::from(world.position);
             let clip = projection * origin.extend(1.);
             let selected = self.editor.selected.as_deref() == Some(&object.id);

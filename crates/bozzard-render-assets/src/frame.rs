@@ -593,6 +593,9 @@ impl RenderFrame {
     pub fn set_display(&mut self, display: bozzard_render::DisplaySettings) {
         self.scene.as_mut().expect("live render frame").display = display;
     }
+    pub fn set_lighting(&mut self, lighting: bozzard_render::Lighting) {
+        self.scene.as_mut().expect("live render frame").lighting = lighting;
+    }
     pub fn bypass_effects(&mut self) {
         let scene = self.scene.as_mut().expect("live render frame");
         scene.display = Default::default();

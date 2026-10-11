@@ -14,7 +14,8 @@ pub(super) struct Temporal {
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     targets: Option<Targets>,
-    bindings: Option<(wgpu::BindGroup, wgpu::BindGroup)>,
+    /// Resolve/blur bindings for each history index and input views.
+    bindings: gpu_util::Recent<(usize, [wgpu::TextureView; 4]), (wgpu::BindGroup, wgpu::BindGroup)>,
     index: usize,
     active: bool,
     blur: bool,
@@ -111,7 +112,7 @@ impl Temporal {
                 ..Default::default()
             }),
             targets: None,
-            bindings: None,
+            bindings: Default::default(),
             index: 0,
             active: false,
             blur: false,
@@ -127,16 +128,16 @@ impl Temporal {
         source: &wgpu::TextureView,
         settings: DisplaySettings,
         frame: &post_process::FrameInput<'_>,
-    ) -> bool {
-        let old_active = self.active;
+        created: &mut usize,
+    ) {
         self.active = !frame.raw
             && frame.geometry.is_some()
             && (settings.temporal_aa.enabled || settings.motion_blur.enabled);
         if !self.active {
             self.reset();
-            return old_active;
+            self.bindings.clear();
+            return;
         }
-        let old_blur = self.blur;
         self.blur = settings.motion_blur.enabled
             && settings.motion_blur.shutter_angle > 0.
             && settings.motion_blur.max_radius > 0.;
@@ -158,19 +159,21 @@ impl Temporal {
                     "maximum velocity tiles",
                 ),
             });
+            self.bindings.clear();
             self.reset();
         }
         self.index = 1 - self.index;
         let targets = self.targets.as_ref().unwrap();
         let geometry = frame.geometry.unwrap();
+        let index = self.index;
         let bind = |current, tiles| {
             let views = [
                 current,
                 frame.depth.unwrap(),
                 &geometry.motion,
                 &geometry.normal,
-                &targets.colors[1 - self.index],
-                &targets.surfaces[1 - self.index],
+                &targets.colors[1 - index],
+                &targets.surfaces[1 - index],
             ];
             let mut entries: Vec<_> = views
                 .into_iter()
@@ -198,10 +201,20 @@ impl Temporal {
                 entries: &entries,
             })
         };
-        self.bindings = Some((
-            bind(source, &targets.colors[1 - self.index]),
-            bind(&targets.colors[self.index], &targets.tiles),
-        ));
+        let inputs = [
+            source.clone(),
+            frame.depth.unwrap().clone(),
+            geometry.motion.clone(),
+            geometry.normal.clone(),
+        ];
+        if self.bindings.select((index, inputs), |_| {
+            (
+                bind(source, &targets.colors[1 - index]),
+                bind(&targets.colors[index], &targets.tiles),
+            )
+        }) {
+            *created += 2;
+        }
         let t = frame.temporal;
         let valid = t.valid && self.initialized;
         gpu.queue.write_buffer(
@@ -251,7 +264,6 @@ impl Temporal {
             ),
         );
         self.initialized = true;
-        resized || !old_active || old_blur != self.blur || !self.blur
     }
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.active.then(|| {
@@ -268,7 +280,7 @@ impl Temporal {
             return;
         }
         let t = self.targets.as_ref().unwrap();
-        let (taa, motion) = self.bindings.as_ref().unwrap();
+        let (taa, motion) = self.bindings.current().unwrap();
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("temporal antialiasing resolve"),

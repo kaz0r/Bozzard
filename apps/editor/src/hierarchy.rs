@@ -1,6 +1,9 @@
 use crate::egui;
-use bozzard_scene::{Object, Scene};
-use std::collections::{BTreeMap, BTreeSet};
+use bozzard_scene::Scene;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Weak},
+};
 
 pub(super) fn visibility_eye(ui: &mut egui::Ui, visible: bool) -> egui::Response {
     const HIT_SIZE: f32 = 24.0;
@@ -81,16 +84,48 @@ pub(super) fn disclosure_slot(
     response
 }
 
-/// Preserve document order without rescanning every object for each expanded row.
-pub fn children(scene: &Scene) -> BTreeMap<Option<&str>, Vec<&Object>> {
-    let mut children = BTreeMap::<_, Vec<_>>::new();
-    for object in &scene.objects {
-        children
-            .entry(object.parent.as_deref())
-            .or_default()
-            .push(object);
+/// Object positions by ID and each parent's children in document order, so rows need not
+/// rescan every object and selection checks need not collect every ID each frame.
+#[derive(Default)]
+pub struct SceneIndex {
+    /// Like collecting into a map, the last of any repeated ID wins.
+    positions: HashMap<String, usize>,
+    roots: Vec<usize>,
+    children: HashMap<String, Vec<usize>>,
+}
+impl SceneIndex {
+    pub fn new(scene: &Scene) -> Self {
+        let mut index = Self {
+            positions: HashMap::with_capacity(scene.objects.len()),
+            ..Default::default()
+        };
+        for (position, object) in scene.objects.iter().enumerate() {
+            index.positions.insert(object.id.clone(), position);
+            match &object.parent {
+                None => index.roots.push(position),
+                Some(parent) => index
+                    .children
+                    .entry(parent.clone())
+                    .or_default()
+                    .push(position),
+            }
+        }
+        index
     }
-    children
+    pub fn position(&self, id: &str) -> Option<usize> {
+        self.positions.get(id).copied()
+    }
+    /// Positions of objects without a parent, in document order.
+    pub fn roots(&self) -> &[usize] {
+        &self.roots
+    }
+    /// Positions of the objects whose parent is `id`, in document order.
+    pub fn children(&self, id: &str) -> &[usize] {
+        self.children.get(id).map_or(&[], Vec::as_slice)
+    }
+    pub fn has_children(&self, id: &str) -> bool {
+        self.children.contains_key(id)
+    }
 }
 
 /// Transient navigation state, never serialized into a scene or its history.
@@ -102,17 +137,27 @@ pub struct HierarchyState {
     selected_objects: BTreeSet<String>,
     selection_anchor: Option<String>,
     last_primary: Option<String>,
+    index: Option<(Weak<Scene>, Arc<SceneIndex>)>,
 }
 impl HierarchyState {
+    /// The index of `scene`, rebuilt only for a new document snapshot. While the cache
+    /// holds a `Weak`, a snapshot cannot change in place: `Arc::make_mut` moves it first.
+    pub fn index(&mut self, scene: &Arc<Scene>) -> Arc<SceneIndex> {
+        let source = Arc::downgrade(scene);
+        if let Some((cached, index)) = &self.index
+            && cached.ptr_eq(&source)
+        {
+            return Arc::clone(index);
+        }
+        let index = Arc::new(SceneIndex::new(scene));
+        self.index = Some((source, Arc::clone(&index)));
+        index
+    }
     /// Keep hierarchy multi-selection in sync with picks from other editor panes.
-    pub fn sync_object_selection(&mut self, scene: &Scene, primary: Option<&str>) {
-        let existing: BTreeSet<_> = scene
-            .objects
-            .iter()
-            .map(|object| object.id.as_str())
-            .collect();
+    pub fn sync_object_selection(&mut self, scene: &Arc<Scene>, primary: Option<&str>) {
+        let index = self.index(scene);
         self.selected_objects
-            .retain(|id| existing.contains(id.as_str()));
+            .retain(|id| index.position(id).is_some());
         if self.last_primary.as_deref() != primary {
             self.reset_selection(primary);
         } else if self.selected_objects.is_empty() {
@@ -121,7 +166,7 @@ impl HierarchyState {
         if self
             .selection_anchor
             .as_deref()
-            .is_some_and(|id| !existing.contains(id))
+            .is_some_and(|id| index.position(id).is_none())
         {
             self.selection_anchor = primary.map(str::to_owned);
         }
@@ -214,10 +259,9 @@ impl HierarchyState {
             })
             .collect();
     }
-    pub fn sync_selection(&mut self, scene: &Scene, selected: Option<&str>) {
-        let objects: BTreeMap<_, _> = scene.objects.iter().map(|o| (o.id.as_str(), o)).collect();
-        self.collapsed
-            .retain(|id| objects.contains_key(id.as_str()));
+    pub fn sync_selection(&mut self, scene: &Arc<Scene>, selected: Option<&str>) {
+        let index = self.index(scene);
+        self.collapsed.retain(|id| index.position(id).is_some());
         let mut path = Vec::new();
         let mut next = selected;
         while let Some(id) = next {
@@ -225,7 +269,9 @@ impl HierarchyState {
                 break;
             }
             path.push(id.to_owned());
-            next = objects.get(id).and_then(|o| o.parent.as_deref());
+            next = index
+                .position(id)
+                .and_then(|position| scene.objects[position].parent.as_deref());
         }
         if path != self.selection_path {
             for id in path.iter().skip(1) {
@@ -245,7 +291,7 @@ impl HierarchyState {
             self.surface_selection = selected;
         }
     }
-    pub fn reveal(&mut self, scene: &Scene, selected: Option<&str>) {
+    pub fn reveal(&mut self, scene: &Arc<Scene>, selected: Option<&str>) {
         self.selection_path.clear();
         self.sync_selection(scene, selected);
     }
@@ -265,7 +311,7 @@ mod tests {
         ]}"#).unwrap()
     }
     fn walk(scene: &Scene, indexed: bool) -> Vec<&str> {
-        let index = indexed.then(|| children(scene));
+        let index = indexed.then(|| SceneIndex::new(scene));
         let mut stack: Vec<_> = scene
             .objects
             .iter()
@@ -278,11 +324,10 @@ mod tests {
             if let Some(index) = &index {
                 stack.extend(
                     index
-                        .get(&Some(object.id.as_str()))
-                        .into_iter()
-                        .flatten()
+                        .children(&object.id)
+                        .iter()
                         .rev()
-                        .copied(),
+                        .map(|&child| &scene.objects[child]),
                 );
             } else {
                 stack.extend(
@@ -393,7 +438,7 @@ mod tests {
     }
     #[test]
     fn hidden_anchor_falls_back_to_single_selection_and_external_pick_resets_range() {
-        let scene = scene();
+        let scene = Arc::new(scene());
         let visible = ["root", "branch", "leaf"].map(str::to_owned);
         let mut tree = HierarchyState::default();
         tree.click_object(&visible, "branch", false, false);
@@ -409,7 +454,7 @@ mod tests {
     }
     #[test]
     fn new_selection_reveals_ancestors_but_manual_collapse_sticks() {
-        let scene = scene();
+        let scene = Arc::new(scene());
         let mut tree = HierarchyState::default();
         tree.collapse_all(&scene);
         tree.sync_selection(&scene, Some("leaf"));
@@ -430,6 +475,7 @@ mod tests {
         ]}"#).unwrap().objects.remove(0).drawable;
         scene.objects[2].drawable = drawable;
         let before = scene.clone();
+        let scene = Arc::new(scene);
         let mut tree = HierarchyState::default();
         tree.collapse_all(&scene);
         assert!(!tree.visit_children("leaf", false));
@@ -452,16 +498,21 @@ mod tests {
         tree.sync_surface_selection(None);
         tree.sync_surface_selection(Some(("leaf", 1)));
         assert!(!tree.is_collapsed("leaf"));
-        assert_eq!(scene, before);
+        assert_eq!(*scene, before);
     }
     #[test]
     fn reparented_selection_is_revealed_and_deleted_ids_pruned() {
-        let mut scene = scene();
+        let mut scene = Arc::new(scene());
         let mut tree = HierarchyState::default();
         tree.sync_selection(&scene, Some("leaf"));
         tree.collapse_all(&scene);
-        scene.objects[2].parent = Some("root".into());
-        scene.objects.remove(1);
+        let index = tree.index(&scene);
+        assert!(Arc::ptr_eq(&index, &tree.index(&scene)), "same snapshot");
+        // The cached index must notice an edit even when nothing else holds the snapshot.
+        let document = Arc::make_mut(&mut scene);
+        document.objects[2].parent = Some("root".into());
+        document.objects.remove(1);
+        assert!(!Arc::ptr_eq(&index, &tree.index(&scene)));
         tree.sync_selection(&scene, Some("leaf"));
         assert!(!tree.is_collapsed("root"));
         assert!(!tree.is_collapsed("branch"));

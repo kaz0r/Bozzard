@@ -414,6 +414,43 @@ fn screen_picking_round_trips_orthographic_perspective_and_parented_cameras() {
 }
 
 #[test]
+fn overlap_count_matches_with_and_without_overlap_hooks() {
+    let scene = Scene::from_json(
+        r#"{"version":1,"name":"overlap count","views":{},
+            "assets":{"count":{"kind":"script","path":"count.rhai"}},
+            "objects":[
+              {"id":"probe","name":"Probe","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+               "collider":{"size":[1,1,1]},
+               "script_manager":{"scripts":[{"enabled":true,"script":"count"}]}},
+              {"id":"near","name":"Near","transform":{"translation":[0.5,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+               "collider":{"size":[1,1,1]}},
+              {"id":"ghost","name":"Ghost","transform":{"translation":[0,0.5,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+               "collider":{"size":[1,1,1],"layers":2,"mask":2}},
+              {"id":"far","name":"Far","transform":{"translation":[9,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+               "collider":{"size":[1,1,1]}}]}"#,
+    )
+    .unwrap();
+    let count = r#"fn on_update(me, dt) {
+        let counts = [overlap_count(me), overlap_count("near"), overlap_count("far")];
+        if counts != [1.0, 1.0, 0.0] { throw `overlap counts ${counts}`; }
+    }"#;
+    // The first script never needs overlap sets; the second listens, which computes them eagerly.
+    for source in [
+        count.to_owned(),
+        format!("{count}\nfn on_overlap_enter(me) {{}}"),
+    ] {
+        let mut world = World::new();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance.register_script("count".into(), source).unwrap();
+        for _ in 0..2 {
+            instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .unwrap();
+        }
+    }
+}
+
+#[test]
 fn collisionless_script_queries_observe_a_collider_added_to_the_live_world() {
     let scene = Scene::from_json(
         r#"{"version":1,"name":"spatial script","views":{},

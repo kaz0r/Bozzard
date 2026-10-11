@@ -1,0 +1,1121 @@
+benchmark	pair	side	metric	value	unit	seconds
+simulation-512	1	base	tick_median	8.354	ms	3.0
+simulation-512	1	base	stage:Animation	0.000	ms	3.0
+simulation-512	1	base	stage:Audio	0.001	ms	3.0
+simulation-512	1	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	1	base	stage:Character movement	0.001	ms	3.0
+simulation-512	1	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	1	base	stage:Fixed tick	8.354	ms	3.0
+simulation-512	1	base	stage:Gameplay	8.350	ms	3.0
+simulation-512	1	base	stage:Interactions	0.548	ms	3.0
+simulation-512	1	base	stage:Navigation	0.000	ms	3.0
+simulation-512	1	base	stage:Particles	0.000	ms	3.0
+simulation-512	1	base	stage:Physics	0.744	ms	3.0
+simulation-512	1	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	1	base	stage:Script commands	6.423	ms	3.0
+simulation-512	1	base	stage:Script hooks	0.057	ms	3.0
+simulation-512	1	base	stage:Script read view	0.227	ms	3.0
+simulation-512	1	base	stage:Scripts	7.047	ms	3.0
+simulation-512	1	base	stage:Spin	0.002	ms	3.0
+simulation-512	1	base	stage:Sprites	0.000	ms	3.0
+simulation-512	1	base	stage:Timelines	0.000	ms	3.0
+simulation-512	1	base	stage:Tweens	0.000	ms	3.0
+simulation-512	1	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	1	final	tick_median	0.520	ms	0.2
+simulation-512	1	final	stage:Animation	0.000	ms	0.2
+simulation-512	1	final	stage:Audio	0.000	ms	0.2
+simulation-512	1	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	1	final	stage:Character movement	0.000	ms	0.2
+simulation-512	1	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	1	final	stage:Fixed tick	0.520	ms	0.2
+simulation-512	1	final	stage:Gameplay	0.519	ms	0.2
+simulation-512	1	final	stage:Interactions	0.039	ms	0.2
+simulation-512	1	final	stage:Navigation	0.000	ms	0.2
+simulation-512	1	final	stage:Particles	0.000	ms	0.2
+simulation-512	1	final	stage:Physics	0.162	ms	0.2
+simulation-512	1	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	1	final	stage:Script commands	0.145	ms	0.2
+simulation-512	1	final	stage:Script hooks	0.051	ms	0.2
+simulation-512	1	final	stage:Script read view	0.036	ms	0.2
+simulation-512	1	final	stage:Scripts	0.313	ms	0.2
+simulation-512	1	final	stage:Spin	0.000	ms	0.2
+simulation-512	1	final	stage:Sprites	0.000	ms	0.2
+simulation-512	1	final	stage:Timelines	0.000	ms	0.2
+simulation-512	1	final	stage:Tweens	0.000	ms	0.2
+simulation-512	1	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	1	base	tick_median	65.069	ms	23.5
+simulation-4096	1	base	stage:Animation	0.000	ms	23.5
+simulation-4096	1	base	stage:Audio	0.001	ms	23.5
+simulation-4096	1	base	stage:Blueprints	0.005	ms	23.5
+simulation-4096	1	base	stage:Character movement	0.001	ms	23.5
+simulation-4096	1	base	stage:Deferred changes	0.000	ms	23.5
+simulation-4096	1	base	stage:Fixed tick	65.068	ms	23.5
+simulation-4096	1	base	stage:Gameplay	65.061	ms	23.5
+simulation-4096	1	base	stage:Interactions	3.606	ms	23.5
+simulation-4096	1	base	stage:Navigation	0.000	ms	23.5
+simulation-4096	1	base	stage:Particles	0.000	ms	23.5
+simulation-4096	1	base	stage:Physics	6.216	ms	23.5
+simulation-4096	1	base	stage:Presentation history	0.000	ms	23.5
+simulation-4096	1	base	stage:Script commands	51.692	ms	23.5
+simulation-4096	1	base	stage:Script hooks	0.068	ms	23.5
+simulation-4096	1	base	stage:Script read view	1.543	ms	23.5
+simulation-4096	1	base	stage:Scripts	55.130	ms	23.5
+simulation-4096	1	base	stage:Spin	0.006	ms	23.5
+simulation-4096	1	base	stage:Sprites	0.001	ms	23.5
+simulation-4096	1	base	stage:Timelines	0.001	ms	23.5
+simulation-4096	1	base	stage:Tweens	0.001	ms	23.5
+simulation-4096	1	base	pose_digest	f8b7c97a503c0a6b	hex	23.5
+simulation-4096	1	final	tick_median	2.956	ms	1.2
+simulation-4096	1	final	stage:Animation	0.000	ms	1.2
+simulation-4096	1	final	stage:Audio	0.001	ms	1.2
+simulation-4096	1	final	stage:Blueprints	0.005	ms	1.2
+simulation-4096	1	final	stage:Character movement	0.001	ms	1.2
+simulation-4096	1	final	stage:Deferred changes	0.000	ms	1.2
+simulation-4096	1	final	stage:Fixed tick	2.956	ms	1.2
+simulation-4096	1	final	stage:Gameplay	2.955	ms	1.2
+simulation-4096	1	final	stage:Interactions	0.341	ms	1.2
+simulation-4096	1	final	stage:Navigation	0.000	ms	1.2
+simulation-4096	1	final	stage:Particles	0.000	ms	1.2
+simulation-4096	1	final	stage:Physics	1.139	ms	1.2
+simulation-4096	1	final	stage:Presentation history	0.000	ms	1.2
+simulation-4096	1	final	stage:Script commands	0.516	ms	1.2
+simulation-4096	1	final	stage:Script hooks	0.055	ms	1.2
+simulation-4096	1	final	stage:Script read view	0.251	ms	1.2
+simulation-4096	1	final	stage:Scripts	1.458	ms	1.2
+simulation-4096	1	final	stage:Spin	0.000	ms	1.2
+simulation-4096	1	final	stage:Sprites	0.000	ms	1.2
+simulation-4096	1	final	stage:Timelines	0.000	ms	1.2
+simulation-4096	1	final	stage:Tweens	0.000	ms	1.2
+simulation-4096	1	final	pose_digest	f8b7c97a503c0a6b	hex	1.2
+collisions-384	1	base	live_overlaps	0.142771	ms	0.1
+collisions-384	1	base	move_box	0.248067	ms	0.1
+collisions-384	1	final	live_overlaps	0.073991	ms	0.0
+collisions-384	1	final	move_box	0.044901	ms	0.0
+collisions-1536	1	base	live_overlaps	0.815382	ms	0.2
+collisions-1536	1	base	move_box	1.020064	ms	0.2
+collisions-1536	1	final	live_overlaps	0.547734	ms	0.1
+collisions-1536	1	final	move_box	0.169617	ms	0.1
+factory	1	base	tick_median	0.697	ms	0.3
+factory	1	base	stage:Animation	0.000	ms	0.3
+factory	1	base	stage:Audio	0.001	ms	0.3
+factory	1	base	stage:Blueprints	0.001	ms	0.3
+factory	1	base	stage:Character movement	0.000	ms	0.3
+factory	1	base	stage:Deferred changes	0.000	ms	0.3
+factory	1	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	1	base	stage:Factory co-op host	0.000	ms	0.3
+factory	1	base	stage:Factory session	0.001	ms	0.3
+factory	1	base	stage:Fixed tick	0.696	ms	0.3
+factory	1	base	stage:Gameplay	0.693	ms	0.3
+factory	1	base	stage:Interactions	0.000	ms	0.3
+factory	1	base	stage:Navigation	0.000	ms	0.3
+factory	1	base	stage:Particles	0.000	ms	0.3
+factory	1	base	stage:Physics	0.019	ms	0.3
+factory	1	base	stage:Presentation history	0.000	ms	0.3
+factory	1	base	stage:Script commands	0.006	ms	0.3
+factory	1	base	stage:Script hooks	0.487	ms	0.3
+factory	1	base	stage:Script read view	0.159	ms	0.3
+factory	1	base	stage:Scripts	0.669	ms	0.3
+factory	1	base	stage:Spin	0.001	ms	0.3
+factory	1	base	stage:Sprites	0.000	ms	0.3
+factory	1	base	stage:Timelines	0.000	ms	0.3
+factory	1	base	stage:Tweens	0.000	ms	0.3
+factory	1	final	tick_median	0.534	ms	0.3
+factory	1	final	stage:Animation	0.000	ms	0.3
+factory	1	final	stage:Audio	0.000	ms	0.3
+factory	1	final	stage:Blueprints	0.001	ms	0.3
+factory	1	final	stage:Character movement	0.000	ms	0.3
+factory	1	final	stage:Deferred changes	0.000	ms	0.3
+factory	1	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	1	final	stage:Factory co-op host	0.000	ms	0.3
+factory	1	final	stage:Factory session	0.001	ms	0.3
+factory	1	final	stage:Fixed tick	0.534	ms	0.3
+factory	1	final	stage:Gameplay	0.531	ms	0.3
+factory	1	final	stage:Interactions	0.000	ms	0.3
+factory	1	final	stage:Navigation	0.000	ms	0.3
+factory	1	final	stage:Particles	0.000	ms	0.3
+factory	1	final	stage:Physics	0.005	ms	0.3
+factory	1	final	stage:Presentation history	0.000	ms	0.3
+factory	1	final	stage:Script commands	0.006	ms	0.3
+factory	1	final	stage:Script hooks	0.480	ms	0.3
+factory	1	final	stage:Script read view	0.023	ms	0.3
+factory	1	final	stage:Scripts	0.522	ms	0.3
+factory	1	final	stage:Spin	0.000	ms	0.3
+factory	1	final	stage:Sprites	0.000	ms	0.3
+factory	1	final	stage:Timelines	0.000	ms	0.3
+factory	1	final	stage:Tweens	0.000	ms	0.3
+blueprints	1	base	tick	2.142	ms	0.7
+blueprints	1	final	tick	1.992	ms	0.6
+flap	1	base	host receive + scripted simulation	45.330	us	1.9
+flap	1	base	replica snapshot apply/replay (excludes input prediction)	1.190	us	1.9
+flap	1	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.990	us	1.9
+flap	1	base	scripted presentation accessors	0.130	us	1.9
+flap	1	base	Flap Woods unchanged-frame scene presentation	56.541	us	1.9
+flap	1	base	Flap Woods moving-frame scene presentation	71.511	us	1.9
+flap	1	base	Flap Woods scene with no-op presentation scripts	14.290	us	1.9
+flap	1	final	host receive + scripted simulation	45.190	us	1.6
+flap	1	final	replica snapshot apply/replay (excludes input prediction)	1.200	us	1.6
+flap	1	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.645	us	1.6
+flap	1	final	scripted presentation accessors	0.120	us	1.6
+flap	1	final	Flap Woods unchanged-frame scene presentation	47.200	us	1.6
+flap	1	final	Flap Woods moving-frame scene presentation	55.416	us	1.6
+flap	1	final	Flap Woods scene with no-op presentation scripts	5.300	us	1.6
+simulation-512	2	base	tick_median	8.324	ms	3.0
+simulation-512	2	base	stage:Animation	0.000	ms	3.0
+simulation-512	2	base	stage:Audio	0.001	ms	3.0
+simulation-512	2	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	2	base	stage:Character movement	0.001	ms	3.0
+simulation-512	2	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	2	base	stage:Fixed tick	8.323	ms	3.0
+simulation-512	2	base	stage:Gameplay	8.320	ms	3.0
+simulation-512	2	base	stage:Interactions	0.546	ms	3.0
+simulation-512	2	base	stage:Navigation	0.000	ms	3.0
+simulation-512	2	base	stage:Particles	0.000	ms	3.0
+simulation-512	2	base	stage:Physics	0.754	ms	3.0
+simulation-512	2	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	2	base	stage:Script commands	6.388	ms	3.0
+simulation-512	2	base	stage:Script hooks	0.057	ms	3.0
+simulation-512	2	base	stage:Script read view	0.227	ms	3.0
+simulation-512	2	base	stage:Scripts	7.008	ms	3.0
+simulation-512	2	base	stage:Spin	0.002	ms	3.0
+simulation-512	2	base	stage:Sprites	0.000	ms	3.0
+simulation-512	2	base	stage:Timelines	0.000	ms	3.0
+simulation-512	2	base	stage:Tweens	0.000	ms	3.0
+simulation-512	2	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	2	final	tick_median	0.524	ms	0.2
+simulation-512	2	final	stage:Animation	0.000	ms	0.2
+simulation-512	2	final	stage:Audio	0.000	ms	0.2
+simulation-512	2	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	2	final	stage:Character movement	0.001	ms	0.2
+simulation-512	2	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	2	final	stage:Fixed tick	0.524	ms	0.2
+simulation-512	2	final	stage:Gameplay	0.523	ms	0.2
+simulation-512	2	final	stage:Interactions	0.040	ms	0.2
+simulation-512	2	final	stage:Navigation	0.000	ms	0.2
+simulation-512	2	final	stage:Particles	0.000	ms	0.2
+simulation-512	2	final	stage:Physics	0.161	ms	0.2
+simulation-512	2	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	2	final	stage:Script commands	0.147	ms	0.2
+simulation-512	2	final	stage:Script hooks	0.053	ms	0.2
+simulation-512	2	final	stage:Script read view	0.036	ms	0.2
+simulation-512	2	final	stage:Scripts	0.316	ms	0.2
+simulation-512	2	final	stage:Spin	0.000	ms	0.2
+simulation-512	2	final	stage:Sprites	0.000	ms	0.2
+simulation-512	2	final	stage:Timelines	0.000	ms	0.2
+simulation-512	2	final	stage:Tweens	0.000	ms	0.2
+simulation-512	2	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	2	base	tick_median	65.752	ms	23.7
+simulation-4096	2	base	stage:Animation	0.000	ms	23.7
+simulation-4096	2	base	stage:Audio	0.001	ms	23.7
+simulation-4096	2	base	stage:Blueprints	0.005	ms	23.7
+simulation-4096	2	base	stage:Character movement	0.001	ms	23.7
+simulation-4096	2	base	stage:Deferred changes	0.000	ms	23.7
+simulation-4096	2	base	stage:Fixed tick	65.752	ms	23.7
+simulation-4096	2	base	stage:Gameplay	65.744	ms	23.7
+simulation-4096	2	base	stage:Interactions	3.630	ms	23.7
+simulation-4096	2	base	stage:Navigation	0.000	ms	23.7
+simulation-4096	2	base	stage:Particles	0.000	ms	23.7
+simulation-4096	2	base	stage:Physics	6.260	ms	23.7
+simulation-4096	2	base	stage:Presentation history	0.000	ms	23.7
+simulation-4096	2	base	stage:Script commands	52.338	ms	23.7
+simulation-4096	2	base	stage:Script hooks	0.067	ms	23.7
+simulation-4096	2	base	stage:Script read view	1.540	ms	23.7
+simulation-4096	2	base	stage:Scripts	55.794	ms	23.7
+simulation-4096	2	base	stage:Spin	0.006	ms	23.7
+simulation-4096	2	base	stage:Sprites	0.001	ms	23.7
+simulation-4096	2	base	stage:Timelines	0.001	ms	23.7
+simulation-4096	2	base	stage:Tweens	0.000	ms	23.7
+simulation-4096	2	base	pose_digest	f8b7c97a503c0a6b	hex	23.7
+simulation-4096	2	final	tick_median	2.988	ms	1.2
+simulation-4096	2	final	stage:Animation	0.000	ms	1.2
+simulation-4096	2	final	stage:Audio	0.001	ms	1.2
+simulation-4096	2	final	stage:Blueprints	0.005	ms	1.2
+simulation-4096	2	final	stage:Character movement	0.001	ms	1.2
+simulation-4096	2	final	stage:Deferred changes	0.000	ms	1.2
+simulation-4096	2	final	stage:Fixed tick	2.988	ms	1.2
+simulation-4096	2	final	stage:Gameplay	2.987	ms	1.2
+simulation-4096	2	final	stage:Interactions	0.341	ms	1.2
+simulation-4096	2	final	stage:Navigation	0.000	ms	1.2
+simulation-4096	2	final	stage:Particles	0.000	ms	1.2
+simulation-4096	2	final	stage:Physics	1.149	ms	1.2
+simulation-4096	2	final	stage:Presentation history	0.000	ms	1.2
+simulation-4096	2	final	stage:Script commands	0.519	ms	1.2
+simulation-4096	2	final	stage:Script hooks	0.057	ms	1.2
+simulation-4096	2	final	stage:Script read view	0.253	ms	1.2
+simulation-4096	2	final	stage:Scripts	1.472	ms	1.2
+simulation-4096	2	final	stage:Spin	0.000	ms	1.2
+simulation-4096	2	final	stage:Sprites	0.000	ms	1.2
+simulation-4096	2	final	stage:Timelines	0.000	ms	1.2
+simulation-4096	2	final	stage:Tweens	0.000	ms	1.2
+simulation-4096	2	final	pose_digest	f8b7c97a503c0a6b	hex	1.2
+collisions-384	2	base	live_overlaps	0.143681	ms	0.1
+collisions-384	2	base	move_box	0.249787	ms	0.1
+collisions-384	2	final	live_overlaps	0.079180	ms	0.0
+collisions-384	2	final	move_box	0.047061	ms	0.0
+collisions-1536	2	base	live_overlaps	0.812006	ms	0.2
+collisions-1536	2	base	move_box	1.023588	ms	0.2
+collisions-1536	2	final	live_overlaps	0.546145	ms	0.1
+collisions-1536	2	final	move_box	0.165402	ms	0.1
+factory	2	base	tick_median	0.693	ms	0.3
+factory	2	base	stage:Animation	0.000	ms	0.3
+factory	2	base	stage:Audio	0.001	ms	0.3
+factory	2	base	stage:Blueprints	0.001	ms	0.3
+factory	2	base	stage:Character movement	0.000	ms	0.3
+factory	2	base	stage:Deferred changes	0.000	ms	0.3
+factory	2	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	2	base	stage:Factory co-op host	0.000	ms	0.3
+factory	2	base	stage:Factory session	0.001	ms	0.3
+factory	2	base	stage:Fixed tick	0.693	ms	0.3
+factory	2	base	stage:Gameplay	0.690	ms	0.3
+factory	2	base	stage:Interactions	0.000	ms	0.3
+factory	2	base	stage:Navigation	0.000	ms	0.3
+factory	2	base	stage:Particles	0.000	ms	0.3
+factory	2	base	stage:Physics	0.019	ms	0.3
+factory	2	base	stage:Presentation history	0.000	ms	0.3
+factory	2	base	stage:Script commands	0.007	ms	0.3
+factory	2	base	stage:Script hooks	0.484	ms	0.3
+factory	2	base	stage:Script read view	0.158	ms	0.3
+factory	2	base	stage:Scripts	0.666	ms	0.3
+factory	2	base	stage:Spin	0.001	ms	0.3
+factory	2	base	stage:Sprites	0.000	ms	0.3
+factory	2	base	stage:Timelines	0.000	ms	0.3
+factory	2	base	stage:Tweens	0.000	ms	0.3
+factory	2	final	tick_median	0.536	ms	0.3
+factory	2	final	stage:Animation	0.000	ms	0.3
+factory	2	final	stage:Audio	0.001	ms	0.3
+factory	2	final	stage:Blueprints	0.001	ms	0.3
+factory	2	final	stage:Character movement	0.000	ms	0.3
+factory	2	final	stage:Deferred changes	0.000	ms	0.3
+factory	2	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	2	final	stage:Factory co-op host	0.000	ms	0.3
+factory	2	final	stage:Factory session	0.000	ms	0.3
+factory	2	final	stage:Fixed tick	0.536	ms	0.3
+factory	2	final	stage:Gameplay	0.535	ms	0.3
+factory	2	final	stage:Interactions	0.000	ms	0.3
+factory	2	final	stage:Navigation	0.000	ms	0.3
+factory	2	final	stage:Particles	0.000	ms	0.3
+factory	2	final	stage:Physics	0.005	ms	0.3
+factory	2	final	stage:Presentation history	0.000	ms	0.3
+factory	2	final	stage:Script commands	0.006	ms	0.3
+factory	2	final	stage:Script hooks	0.483	ms	0.3
+factory	2	final	stage:Script read view	0.023	ms	0.3
+factory	2	final	stage:Scripts	0.526	ms	0.3
+factory	2	final	stage:Spin	0.000	ms	0.3
+factory	2	final	stage:Sprites	0.000	ms	0.3
+factory	2	final	stage:Timelines	0.000	ms	0.3
+factory	2	final	stage:Tweens	0.000	ms	0.3
+blueprints	2	base	tick	2.096	ms	0.7
+blueprints	2	final	tick	1.977	ms	0.6
+flap	2	base	host receive + scripted simulation	44.990	us	1.9
+flap	2	base	replica snapshot apply/replay (excludes input prediction)	1.150	us	1.9
+flap	2	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	8.050	us	1.9
+flap	2	base	scripted presentation accessors	0.120	us	1.9
+flap	2	base	Flap Woods unchanged-frame scene presentation	55.450	us	1.9
+flap	2	base	Flap Woods moving-frame scene presentation	72.230	us	1.9
+flap	2	base	Flap Woods scene with no-op presentation scripts	14.570	us	1.9
+flap	2	final	host receive + scripted simulation	45.401	us	1.6
+flap	2	final	replica snapshot apply/replay (excludes input prediction)	1.140	us	1.6
+flap	2	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.930	us	1.6
+flap	2	final	scripted presentation accessors	0.120	us	1.6
+flap	2	final	Flap Woods unchanged-frame scene presentation	46.340	us	1.6
+flap	2	final	Flap Woods moving-frame scene presentation	56.480	us	1.6
+flap	2	final	Flap Woods scene with no-op presentation scripts	5.290	us	1.6
+simulation-512	3	base	tick_median	8.332	ms	3.0
+simulation-512	3	base	stage:Animation	0.000	ms	3.0
+simulation-512	3	base	stage:Audio	0.001	ms	3.0
+simulation-512	3	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	3	base	stage:Character movement	0.001	ms	3.0
+simulation-512	3	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	3	base	stage:Fixed tick	8.332	ms	3.0
+simulation-512	3	base	stage:Gameplay	8.329	ms	3.0
+simulation-512	3	base	stage:Interactions	0.545	ms	3.0
+simulation-512	3	base	stage:Navigation	0.000	ms	3.0
+simulation-512	3	base	stage:Particles	0.000	ms	3.0
+simulation-512	3	base	stage:Physics	0.745	ms	3.0
+simulation-512	3	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	3	base	stage:Script commands	6.405	ms	3.0
+simulation-512	3	base	stage:Script hooks	0.059	ms	3.0
+simulation-512	3	base	stage:Script read view	0.227	ms	3.0
+simulation-512	3	base	stage:Scripts	7.025	ms	3.0
+simulation-512	3	base	stage:Spin	0.002	ms	3.0
+simulation-512	3	base	stage:Sprites	0.001	ms	3.0
+simulation-512	3	base	stage:Timelines	0.001	ms	3.0
+simulation-512	3	base	stage:Tweens	0.000	ms	3.0
+simulation-512	3	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	3	final	tick_median	0.529	ms	0.2
+simulation-512	3	final	stage:Animation	0.000	ms	0.2
+simulation-512	3	final	stage:Audio	0.001	ms	0.2
+simulation-512	3	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	3	final	stage:Character movement	0.001	ms	0.2
+simulation-512	3	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	3	final	stage:Fixed tick	0.529	ms	0.2
+simulation-512	3	final	stage:Gameplay	0.528	ms	0.2
+simulation-512	3	final	stage:Interactions	0.040	ms	0.2
+simulation-512	3	final	stage:Navigation	0.000	ms	0.2
+simulation-512	3	final	stage:Particles	0.000	ms	0.2
+simulation-512	3	final	stage:Physics	0.165	ms	0.2
+simulation-512	3	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	3	final	stage:Script commands	0.147	ms	0.2
+simulation-512	3	final	stage:Script hooks	0.052	ms	0.2
+simulation-512	3	final	stage:Script read view	0.036	ms	0.2
+simulation-512	3	final	stage:Scripts	0.315	ms	0.2
+simulation-512	3	final	stage:Spin	0.000	ms	0.2
+simulation-512	3	final	stage:Sprites	0.000	ms	0.2
+simulation-512	3	final	stage:Timelines	0.000	ms	0.2
+simulation-512	3	final	stage:Tweens	0.000	ms	0.2
+simulation-512	3	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	3	base	tick_median	65.955	ms	23.8
+simulation-4096	3	base	stage:Animation	0.000	ms	23.8
+simulation-4096	3	base	stage:Audio	0.001	ms	23.8
+simulation-4096	3	base	stage:Blueprints	0.004	ms	23.8
+simulation-4096	3	base	stage:Character movement	0.001	ms	23.8
+simulation-4096	3	base	stage:Deferred changes	0.000	ms	23.8
+simulation-4096	3	base	stage:Fixed tick	65.955	ms	23.8
+simulation-4096	3	base	stage:Gameplay	65.946	ms	23.8
+simulation-4096	3	base	stage:Interactions	3.642	ms	23.8
+simulation-4096	3	base	stage:Navigation	0.000	ms	23.8
+simulation-4096	3	base	stage:Particles	0.000	ms	23.8
+simulation-4096	3	base	stage:Physics	6.227	ms	23.8
+simulation-4096	3	base	stage:Presentation history	0.000	ms	23.8
+simulation-4096	3	base	stage:Script commands	52.554	ms	23.8
+simulation-4096	3	base	stage:Script hooks	0.066	ms	23.8
+simulation-4096	3	base	stage:Script read view	1.543	ms	23.8
+simulation-4096	3	base	stage:Scripts	56.037	ms	23.8
+simulation-4096	3	base	stage:Spin	0.006	ms	23.8
+simulation-4096	3	base	stage:Sprites	0.001	ms	23.8
+simulation-4096	3	base	stage:Timelines	0.001	ms	23.8
+simulation-4096	3	base	stage:Tweens	0.001	ms	23.8
+simulation-4096	3	base	pose_digest	f8b7c97a503c0a6b	hex	23.8
+simulation-4096	3	final	tick_median	2.920	ms	1.1
+simulation-4096	3	final	stage:Animation	0.000	ms	1.1
+simulation-4096	3	final	stage:Audio	0.001	ms	1.1
+simulation-4096	3	final	stage:Blueprints	0.005	ms	1.1
+simulation-4096	3	final	stage:Character movement	0.001	ms	1.1
+simulation-4096	3	final	stage:Deferred changes	0.000	ms	1.1
+simulation-4096	3	final	stage:Fixed tick	2.919	ms	1.1
+simulation-4096	3	final	stage:Gameplay	2.918	ms	1.1
+simulation-4096	3	final	stage:Interactions	0.340	ms	1.1
+simulation-4096	3	final	stage:Navigation	0.000	ms	1.1
+simulation-4096	3	final	stage:Particles	0.000	ms	1.1
+simulation-4096	3	final	stage:Physics	1.121	ms	1.1
+simulation-4096	3	final	stage:Presentation history	0.000	ms	1.1
+simulation-4096	3	final	stage:Script commands	0.515	ms	1.1
+simulation-4096	3	final	stage:Script hooks	0.055	ms	1.1
+simulation-4096	3	final	stage:Script read view	0.250	ms	1.1
+simulation-4096	3	final	stage:Scripts	1.445	ms	1.1
+simulation-4096	3	final	stage:Spin	0.000	ms	1.1
+simulation-4096	3	final	stage:Sprites	0.000	ms	1.1
+simulation-4096	3	final	stage:Timelines	0.000	ms	1.1
+simulation-4096	3	final	stage:Tweens	0.000	ms	1.1
+simulation-4096	3	final	pose_digest	f8b7c97a503c0a6b	hex	1.1
+collisions-384	3	base	live_overlaps	0.141557	ms	0.1
+collisions-384	3	base	move_box	0.247442	ms	0.1
+collisions-384	3	final	live_overlaps	0.074931	ms	0.0
+collisions-384	3	final	move_box	0.045366	ms	0.0
+collisions-1536	3	base	live_overlaps	0.813431	ms	0.2
+collisions-1536	3	base	move_box	1.004717	ms	0.2
+collisions-1536	3	final	live_overlaps	0.546665	ms	0.1
+collisions-1536	3	final	move_box	0.166902	ms	0.1
+factory	3	base	tick_median	0.698	ms	0.3
+factory	3	base	stage:Animation	0.000	ms	0.3
+factory	3	base	stage:Audio	0.001	ms	0.3
+factory	3	base	stage:Blueprints	0.001	ms	0.3
+factory	3	base	stage:Character movement	0.000	ms	0.3
+factory	3	base	stage:Deferred changes	0.000	ms	0.3
+factory	3	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	3	base	stage:Factory co-op host	0.000	ms	0.3
+factory	3	base	stage:Factory session	0.001	ms	0.3
+factory	3	base	stage:Fixed tick	0.697	ms	0.3
+factory	3	base	stage:Gameplay	0.694	ms	0.3
+factory	3	base	stage:Interactions	0.000	ms	0.3
+factory	3	base	stage:Navigation	0.000	ms	0.3
+factory	3	base	stage:Particles	0.000	ms	0.3
+factory	3	base	stage:Physics	0.019	ms	0.3
+factory	3	base	stage:Presentation history	0.000	ms	0.3
+factory	3	base	stage:Script commands	0.006	ms	0.3
+factory	3	base	stage:Script hooks	0.487	ms	0.3
+factory	3	base	stage:Script read view	0.159	ms	0.3
+factory	3	base	stage:Scripts	0.671	ms	0.3
+factory	3	base	stage:Spin	0.001	ms	0.3
+factory	3	base	stage:Sprites	0.000	ms	0.3
+factory	3	base	stage:Timelines	0.000	ms	0.3
+factory	3	base	stage:Tweens	0.000	ms	0.3
+factory	3	final	tick_median	0.540	ms	0.3
+factory	3	final	stage:Animation	0.000	ms	0.3
+factory	3	final	stage:Audio	0.001	ms	0.3
+factory	3	final	stage:Blueprints	0.001	ms	0.3
+factory	3	final	stage:Character movement	0.000	ms	0.3
+factory	3	final	stage:Deferred changes	0.000	ms	0.3
+factory	3	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	3	final	stage:Factory co-op host	0.000	ms	0.3
+factory	3	final	stage:Factory session	0.001	ms	0.3
+factory	3	final	stage:Fixed tick	0.539	ms	0.3
+factory	3	final	stage:Gameplay	0.537	ms	0.3
+factory	3	final	stage:Interactions	0.000	ms	0.3
+factory	3	final	stage:Navigation	0.000	ms	0.3
+factory	3	final	stage:Particles	0.000	ms	0.3
+factory	3	final	stage:Physics	0.005	ms	0.3
+factory	3	final	stage:Presentation history	0.000	ms	0.3
+factory	3	final	stage:Script commands	0.006	ms	0.3
+factory	3	final	stage:Script hooks	0.485	ms	0.3
+factory	3	final	stage:Script read view	0.023	ms	0.3
+factory	3	final	stage:Scripts	0.528	ms	0.3
+factory	3	final	stage:Spin	0.000	ms	0.3
+factory	3	final	stage:Sprites	0.000	ms	0.3
+factory	3	final	stage:Timelines	0.000	ms	0.3
+factory	3	final	stage:Tweens	0.000	ms	0.3
+blueprints	3	base	tick	2.120	ms	0.7
+blueprints	3	final	tick	1.927	ms	0.6
+flap	3	base	host receive + scripted simulation	45.310	us	1.9
+flap	3	base	replica snapshot apply/replay (excludes input prediction)	1.170	us	1.9
+flap	3	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	8.010	us	1.9
+flap	3	base	scripted presentation accessors	0.130	us	1.9
+flap	3	base	Flap Woods unchanged-frame scene presentation	55.371	us	1.9
+flap	3	base	Flap Woods moving-frame scene presentation	72.120	us	1.9
+flap	3	base	Flap Woods scene with no-op presentation scripts	14.660	us	1.9
+flap	3	final	host receive + scripted simulation	45.060	us	1.6
+flap	3	final	replica snapshot apply/replay (excludes input prediction)	1.170	us	1.6
+flap	3	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	8.030	us	1.6
+flap	3	final	scripted presentation accessors	0.120	us	1.6
+flap	3	final	Flap Woods unchanged-frame scene presentation	46.510	us	1.6
+flap	3	final	Flap Woods moving-frame scene presentation	54.690	us	1.6
+flap	3	final	Flap Woods scene with no-op presentation scripts	5.370	us	1.6
+simulation-512	4	base	tick_median	8.309	ms	3.0
+simulation-512	4	base	stage:Animation	0.000	ms	3.0
+simulation-512	4	base	stage:Audio	0.001	ms	3.0
+simulation-512	4	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	4	base	stage:Character movement	0.001	ms	3.0
+simulation-512	4	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	4	base	stage:Fixed tick	8.308	ms	3.0
+simulation-512	4	base	stage:Gameplay	8.305	ms	3.0
+simulation-512	4	base	stage:Interactions	0.546	ms	3.0
+simulation-512	4	base	stage:Navigation	0.000	ms	3.0
+simulation-512	4	base	stage:Particles	0.000	ms	3.0
+simulation-512	4	base	stage:Physics	0.742	ms	3.0
+simulation-512	4	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	4	base	stage:Script commands	6.387	ms	3.0
+simulation-512	4	base	stage:Script hooks	0.057	ms	3.0
+simulation-512	4	base	stage:Script read view	0.227	ms	3.0
+simulation-512	4	base	stage:Scripts	7.004	ms	3.0
+simulation-512	4	base	stage:Spin	0.002	ms	3.0
+simulation-512	4	base	stage:Sprites	0.000	ms	3.0
+simulation-512	4	base	stage:Timelines	0.001	ms	3.0
+simulation-512	4	base	stage:Tweens	0.000	ms	3.0
+simulation-512	4	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	4	final	tick_median	0.518	ms	0.2
+simulation-512	4	final	stage:Animation	0.000	ms	0.2
+simulation-512	4	final	stage:Audio	0.000	ms	0.2
+simulation-512	4	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	4	final	stage:Character movement	0.000	ms	0.2
+simulation-512	4	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	4	final	stage:Fixed tick	0.518	ms	0.2
+simulation-512	4	final	stage:Gameplay	0.517	ms	0.2
+simulation-512	4	final	stage:Interactions	0.039	ms	0.2
+simulation-512	4	final	stage:Navigation	0.000	ms	0.2
+simulation-512	4	final	stage:Particles	0.000	ms	0.2
+simulation-512	4	final	stage:Physics	0.161	ms	0.2
+simulation-512	4	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	4	final	stage:Script commands	0.145	ms	0.2
+simulation-512	4	final	stage:Script hooks	0.051	ms	0.2
+simulation-512	4	final	stage:Script read view	0.036	ms	0.2
+simulation-512	4	final	stage:Scripts	0.312	ms	0.2
+simulation-512	4	final	stage:Spin	0.000	ms	0.2
+simulation-512	4	final	stage:Sprites	0.000	ms	0.2
+simulation-512	4	final	stage:Timelines	0.000	ms	0.2
+simulation-512	4	final	stage:Tweens	0.000	ms	0.2
+simulation-512	4	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	4	base	tick_median	64.814	ms	23.4
+simulation-4096	4	base	stage:Animation	0.000	ms	23.4
+simulation-4096	4	base	stage:Audio	0.001	ms	23.4
+simulation-4096	4	base	stage:Blueprints	0.004	ms	23.4
+simulation-4096	4	base	stage:Character movement	0.001	ms	23.4
+simulation-4096	4	base	stage:Deferred changes	0.000	ms	23.4
+simulation-4096	4	base	stage:Fixed tick	64.813	ms	23.4
+simulation-4096	4	base	stage:Gameplay	64.807	ms	23.4
+simulation-4096	4	base	stage:Interactions	3.555	ms	23.4
+simulation-4096	4	base	stage:Navigation	0.000	ms	23.4
+simulation-4096	4	base	stage:Particles	0.000	ms	23.4
+simulation-4096	4	base	stage:Physics	6.077	ms	23.4
+simulation-4096	4	base	stage:Presentation history	0.000	ms	23.4
+simulation-4096	4	base	stage:Script commands	51.777	ms	23.4
+simulation-4096	4	base	stage:Script hooks	0.063	ms	23.4
+simulation-4096	4	base	stage:Script read view	1.510	ms	23.4
+simulation-4096	4	base	stage:Scripts	55.184	ms	23.4
+simulation-4096	4	base	stage:Spin	0.005	ms	23.4
+simulation-4096	4	base	stage:Sprites	0.001	ms	23.4
+simulation-4096	4	base	stage:Timelines	0.001	ms	23.4
+simulation-4096	4	base	stage:Tweens	0.001	ms	23.4
+simulation-4096	4	base	pose_digest	f8b7c97a503c0a6b	hex	23.4
+simulation-4096	4	final	tick_median	2.949	ms	1.1
+simulation-4096	4	final	stage:Animation	0.000	ms	1.1
+simulation-4096	4	final	stage:Audio	0.001	ms	1.1
+simulation-4096	4	final	stage:Blueprints	0.005	ms	1.1
+simulation-4096	4	final	stage:Character movement	0.001	ms	1.1
+simulation-4096	4	final	stage:Deferred changes	0.000	ms	1.1
+simulation-4096	4	final	stage:Fixed tick	2.949	ms	1.1
+simulation-4096	4	final	stage:Gameplay	2.948	ms	1.1
+simulation-4096	4	final	stage:Interactions	0.341	ms	1.1
+simulation-4096	4	final	stage:Navigation	0.000	ms	1.1
+simulation-4096	4	final	stage:Particles	0.000	ms	1.1
+simulation-4096	4	final	stage:Physics	1.135	ms	1.1
+simulation-4096	4	final	stage:Presentation history	0.000	ms	1.1
+simulation-4096	4	final	stage:Script commands	0.519	ms	1.1
+simulation-4096	4	final	stage:Script hooks	0.055	ms	1.1
+simulation-4096	4	final	stage:Script read view	0.252	ms	1.1
+simulation-4096	4	final	stage:Scripts	1.459	ms	1.1
+simulation-4096	4	final	stage:Spin	0.000	ms	1.1
+simulation-4096	4	final	stage:Sprites	0.000	ms	1.1
+simulation-4096	4	final	stage:Timelines	0.000	ms	1.1
+simulation-4096	4	final	stage:Tweens	0.000	ms	1.1
+simulation-4096	4	final	pose_digest	f8b7c97a503c0a6b	hex	1.1
+collisions-384	4	base	live_overlaps	0.146411	ms	0.1
+collisions-384	4	base	move_box	0.252262	ms	0.1
+collisions-384	4	final	live_overlaps	0.079766	ms	0.0
+collisions-384	4	final	move_box	0.049040	ms	0.0
+collisions-1536	4	base	live_overlaps	0.812536	ms	0.2
+collisions-1536	4	base	move_box	1.012248	ms	0.2
+collisions-1536	4	final	live_overlaps	0.543304	ms	0.1
+collisions-1536	4	final	move_box	0.168891	ms	0.1
+factory	4	base	tick_median	0.709	ms	0.3
+factory	4	base	stage:Animation	0.000	ms	0.3
+factory	4	base	stage:Audio	0.001	ms	0.3
+factory	4	base	stage:Blueprints	0.001	ms	0.3
+factory	4	base	stage:Character movement	0.000	ms	0.3
+factory	4	base	stage:Deferred changes	0.000	ms	0.3
+factory	4	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	4	base	stage:Factory co-op host	0.000	ms	0.3
+factory	4	base	stage:Factory session	0.001	ms	0.3
+factory	4	base	stage:Fixed tick	0.709	ms	0.3
+factory	4	base	stage:Gameplay	0.706	ms	0.3
+factory	4	base	stage:Interactions	0.000	ms	0.3
+factory	4	base	stage:Navigation	0.000	ms	0.3
+factory	4	base	stage:Particles	0.000	ms	0.3
+factory	4	base	stage:Physics	0.019	ms	0.3
+factory	4	base	stage:Presentation history	0.000	ms	0.3
+factory	4	base	stage:Script commands	0.007	ms	0.3
+factory	4	base	stage:Script hooks	0.499	ms	0.3
+factory	4	base	stage:Script read view	0.159	ms	0.3
+factory	4	base	stage:Scripts	0.682	ms	0.3
+factory	4	base	stage:Spin	0.001	ms	0.3
+factory	4	base	stage:Sprites	0.000	ms	0.3
+factory	4	base	stage:Timelines	0.000	ms	0.3
+factory	4	base	stage:Tweens	0.000	ms	0.3
+factory	4	final	tick_median	0.540	ms	0.3
+factory	4	final	stage:Animation	0.000	ms	0.3
+factory	4	final	stage:Audio	0.001	ms	0.3
+factory	4	final	stage:Blueprints	0.001	ms	0.3
+factory	4	final	stage:Character movement	0.000	ms	0.3
+factory	4	final	stage:Deferred changes	0.000	ms	0.3
+factory	4	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	4	final	stage:Factory co-op host	0.000	ms	0.3
+factory	4	final	stage:Factory session	0.001	ms	0.3
+factory	4	final	stage:Fixed tick	0.539	ms	0.3
+factory	4	final	stage:Gameplay	0.538	ms	0.3
+factory	4	final	stage:Interactions	0.000	ms	0.3
+factory	4	final	stage:Navigation	0.000	ms	0.3
+factory	4	final	stage:Particles	0.000	ms	0.3
+factory	4	final	stage:Physics	0.005	ms	0.3
+factory	4	final	stage:Presentation history	0.000	ms	0.3
+factory	4	final	stage:Script commands	0.006	ms	0.3
+factory	4	final	stage:Script hooks	0.483	ms	0.3
+factory	4	final	stage:Script read view	0.023	ms	0.3
+factory	4	final	stage:Scripts	0.528	ms	0.3
+factory	4	final	stage:Spin	0.000	ms	0.3
+factory	4	final	stage:Sprites	0.000	ms	0.3
+factory	4	final	stage:Timelines	0.000	ms	0.3
+factory	4	final	stage:Tweens	0.000	ms	0.3
+blueprints	4	base	tick	2.103	ms	0.7
+blueprints	4	final	tick	1.973	ms	0.6
+flap	4	base	host receive + scripted simulation	45.460	us	1.9
+flap	4	base	replica snapshot apply/replay (excludes input prediction)	1.170	us	1.9
+flap	4	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.955	us	1.9
+flap	4	base	scripted presentation accessors	0.130	us	1.9
+flap	4	base	Flap Woods unchanged-frame scene presentation	55.400	us	1.9
+flap	4	base	Flap Woods moving-frame scene presentation	71.541	us	1.9
+flap	4	base	Flap Woods scene with no-op presentation scripts	14.600	us	1.9
+flap	4	final	host receive + scripted simulation	45.450	us	1.6
+flap	4	final	replica snapshot apply/replay (excludes input prediction)	1.170	us	1.6
+flap	4	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.690	us	1.6
+flap	4	final	scripted presentation accessors	0.120	us	1.6
+flap	4	final	Flap Woods unchanged-frame scene presentation	45.590	us	1.6
+flap	4	final	Flap Woods moving-frame scene presentation	54.200	us	1.6
+flap	4	final	Flap Woods scene with no-op presentation scripts	5.270	us	1.6
+simulation-512	5	base	tick_median	8.397	ms	3.1
+simulation-512	5	base	stage:Animation	0.000	ms	3.1
+simulation-512	5	base	stage:Audio	0.001	ms	3.1
+simulation-512	5	base	stage:Blueprints	0.001	ms	3.1
+simulation-512	5	base	stage:Character movement	0.001	ms	3.1
+simulation-512	5	base	stage:Deferred changes	0.000	ms	3.1
+simulation-512	5	base	stage:Fixed tick	8.396	ms	3.1
+simulation-512	5	base	stage:Gameplay	8.393	ms	3.1
+simulation-512	5	base	stage:Interactions	0.546	ms	3.1
+simulation-512	5	base	stage:Navigation	0.000	ms	3.1
+simulation-512	5	base	stage:Particles	0.000	ms	3.1
+simulation-512	5	base	stage:Physics	0.744	ms	3.1
+simulation-512	5	base	stage:Presentation history	0.000	ms	3.1
+simulation-512	5	base	stage:Script commands	6.470	ms	3.1
+simulation-512	5	base	stage:Script hooks	0.058	ms	3.1
+simulation-512	5	base	stage:Script read view	0.227	ms	3.1
+simulation-512	5	base	stage:Scripts	7.091	ms	3.1
+simulation-512	5	base	stage:Spin	0.002	ms	3.1
+simulation-512	5	base	stage:Sprites	0.000	ms	3.1
+simulation-512	5	base	stage:Timelines	0.001	ms	3.1
+simulation-512	5	base	stage:Tweens	0.000	ms	3.1
+simulation-512	5	base	pose_digest	090639c8cbe7926b	hex	3.1
+simulation-512	5	final	tick_median	0.521	ms	0.2
+simulation-512	5	final	stage:Animation	0.000	ms	0.2
+simulation-512	5	final	stage:Audio	0.000	ms	0.2
+simulation-512	5	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	5	final	stage:Character movement	0.000	ms	0.2
+simulation-512	5	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	5	final	stage:Fixed tick	0.520	ms	0.2
+simulation-512	5	final	stage:Gameplay	0.519	ms	0.2
+simulation-512	5	final	stage:Interactions	0.040	ms	0.2
+simulation-512	5	final	stage:Navigation	0.000	ms	0.2
+simulation-512	5	final	stage:Particles	0.000	ms	0.2
+simulation-512	5	final	stage:Physics	0.161	ms	0.2
+simulation-512	5	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	5	final	stage:Script commands	0.146	ms	0.2
+simulation-512	5	final	stage:Script hooks	0.051	ms	0.2
+simulation-512	5	final	stage:Script read view	0.036	ms	0.2
+simulation-512	5	final	stage:Scripts	0.313	ms	0.2
+simulation-512	5	final	stage:Spin	0.000	ms	0.2
+simulation-512	5	final	stage:Sprites	0.000	ms	0.2
+simulation-512	5	final	stage:Timelines	0.000	ms	0.2
+simulation-512	5	final	stage:Tweens	0.000	ms	0.2
+simulation-512	5	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	5	base	tick_median	64.560	ms	23.3
+simulation-4096	5	base	stage:Animation	0.000	ms	23.3
+simulation-4096	5	base	stage:Audio	0.001	ms	23.3
+simulation-4096	5	base	stage:Blueprints	0.004	ms	23.3
+simulation-4096	5	base	stage:Character movement	0.001	ms	23.3
+simulation-4096	5	base	stage:Deferred changes	0.000	ms	23.3
+simulation-4096	5	base	stage:Fixed tick	64.559	ms	23.3
+simulation-4096	5	base	stage:Gameplay	64.552	ms	23.3
+simulation-4096	5	base	stage:Interactions	3.541	ms	23.3
+simulation-4096	5	base	stage:Navigation	0.000	ms	23.3
+simulation-4096	5	base	stage:Particles	0.000	ms	23.3
+simulation-4096	5	base	stage:Physics	6.002	ms	23.3
+simulation-4096	5	base	stage:Presentation history	0.000	ms	23.3
+simulation-4096	5	base	stage:Script commands	51.601	ms	23.3
+simulation-4096	5	base	stage:Script hooks	0.064	ms	23.3
+simulation-4096	5	base	stage:Script read view	1.509	ms	23.3
+simulation-4096	5	base	stage:Scripts	54.988	ms	23.3
+simulation-4096	5	base	stage:Spin	0.005	ms	23.3
+simulation-4096	5	base	stage:Sprites	0.001	ms	23.3
+simulation-4096	5	base	stage:Timelines	0.001	ms	23.3
+simulation-4096	5	base	stage:Tweens	0.000	ms	23.3
+simulation-4096	5	base	pose_digest	f8b7c97a503c0a6b	hex	23.3
+simulation-4096	5	final	tick_median	2.935	ms	1.1
+simulation-4096	5	final	stage:Animation	0.000	ms	1.1
+simulation-4096	5	final	stage:Audio	0.001	ms	1.1
+simulation-4096	5	final	stage:Blueprints	0.005	ms	1.1
+simulation-4096	5	final	stage:Character movement	0.001	ms	1.1
+simulation-4096	5	final	stage:Deferred changes	0.000	ms	1.1
+simulation-4096	5	final	stage:Fixed tick	2.935	ms	1.1
+simulation-4096	5	final	stage:Gameplay	2.934	ms	1.1
+simulation-4096	5	final	stage:Interactions	0.340	ms	1.1
+simulation-4096	5	final	stage:Navigation	0.000	ms	1.1
+simulation-4096	5	final	stage:Particles	0.000	ms	1.1
+simulation-4096	5	final	stage:Physics	1.131	ms	1.1
+simulation-4096	5	final	stage:Presentation history	0.000	ms	1.1
+simulation-4096	5	final	stage:Script commands	0.514	ms	1.1
+simulation-4096	5	final	stage:Script hooks	0.055	ms	1.1
+simulation-4096	5	final	stage:Script read view	0.253	ms	1.1
+simulation-4096	5	final	stage:Scripts	1.452	ms	1.1
+simulation-4096	5	final	stage:Spin	0.000	ms	1.1
+simulation-4096	5	final	stage:Sprites	0.000	ms	1.1
+simulation-4096	5	final	stage:Timelines	0.000	ms	1.1
+simulation-4096	5	final	stage:Tweens	0.000	ms	1.1
+simulation-4096	5	final	pose_digest	f8b7c97a503c0a6b	hex	1.1
+collisions-384	5	base	live_overlaps	0.143976	ms	0.1
+collisions-384	5	base	move_box	0.249366	ms	0.1
+collisions-384	5	final	live_overlaps	0.078245	ms	0.0
+collisions-384	5	final	move_box	0.046040	ms	0.0
+collisions-1536	5	base	live_overlaps	0.808266	ms	0.2
+collisions-1536	5	base	move_box	1.014403	ms	0.2
+collisions-1536	5	final	live_overlaps	0.544649	ms	0.1
+collisions-1536	5	final	move_box	0.166791	ms	0.1
+factory	5	base	tick_median	0.696	ms	0.3
+factory	5	base	stage:Animation	0.000	ms	0.3
+factory	5	base	stage:Audio	0.001	ms	0.3
+factory	5	base	stage:Blueprints	0.001	ms	0.3
+factory	5	base	stage:Character movement	0.000	ms	0.3
+factory	5	base	stage:Deferred changes	0.000	ms	0.3
+factory	5	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	5	base	stage:Factory co-op host	0.000	ms	0.3
+factory	5	base	stage:Factory session	0.001	ms	0.3
+factory	5	base	stage:Fixed tick	0.695	ms	0.3
+factory	5	base	stage:Gameplay	0.692	ms	0.3
+factory	5	base	stage:Interactions	0.000	ms	0.3
+factory	5	base	stage:Navigation	0.000	ms	0.3
+factory	5	base	stage:Particles	0.000	ms	0.3
+factory	5	base	stage:Physics	0.020	ms	0.3
+factory	5	base	stage:Presentation history	0.000	ms	0.3
+factory	5	base	stage:Script commands	0.007	ms	0.3
+factory	5	base	stage:Script hooks	0.484	ms	0.3
+factory	5	base	stage:Script read view	0.158	ms	0.3
+factory	5	base	stage:Scripts	0.668	ms	0.3
+factory	5	base	stage:Spin	0.001	ms	0.3
+factory	5	base	stage:Sprites	0.000	ms	0.3
+factory	5	base	stage:Timelines	0.000	ms	0.3
+factory	5	base	stage:Tweens	0.000	ms	0.3
+factory	5	final	tick_median	0.538	ms	0.3
+factory	5	final	stage:Animation	0.000	ms	0.3
+factory	5	final	stage:Audio	0.001	ms	0.3
+factory	5	final	stage:Blueprints	0.001	ms	0.3
+factory	5	final	stage:Character movement	0.000	ms	0.3
+factory	5	final	stage:Deferred changes	0.000	ms	0.3
+factory	5	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	5	final	stage:Factory co-op host	0.000	ms	0.3
+factory	5	final	stage:Factory session	0.000	ms	0.3
+factory	5	final	stage:Fixed tick	0.537	ms	0.3
+factory	5	final	stage:Gameplay	0.536	ms	0.3
+factory	5	final	stage:Interactions	0.000	ms	0.3
+factory	5	final	stage:Navigation	0.000	ms	0.3
+factory	5	final	stage:Particles	0.000	ms	0.3
+factory	5	final	stage:Physics	0.005	ms	0.3
+factory	5	final	stage:Presentation history	0.000	ms	0.3
+factory	5	final	stage:Script commands	0.006	ms	0.3
+factory	5	final	stage:Script hooks	0.485	ms	0.3
+factory	5	final	stage:Script read view	0.022	ms	0.3
+factory	5	final	stage:Scripts	0.527	ms	0.3
+factory	5	final	stage:Spin	0.000	ms	0.3
+factory	5	final	stage:Sprites	0.000	ms	0.3
+factory	5	final	stage:Timelines	0.000	ms	0.3
+factory	5	final	stage:Tweens	0.000	ms	0.3
+blueprints	5	base	tick	2.073	ms	0.7
+blueprints	5	final	tick	1.975	ms	0.6
+flap	5	base	host receive + scripted simulation	45.550	us	1.9
+flap	5	base	replica snapshot apply/replay (excludes input prediction)	1.180	us	1.9
+flap	5	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	8.150	us	1.9
+flap	5	base	scripted presentation accessors	0.140	us	1.9
+flap	5	base	Flap Woods unchanged-frame scene presentation	56.630	us	1.9
+flap	5	base	Flap Woods moving-frame scene presentation	71.510	us	1.9
+flap	5	base	Flap Woods scene with no-op presentation scripts	14.850	us	1.9
+flap	5	final	host receive + scripted simulation	45.091	us	1.6
+flap	5	final	replica snapshot apply/replay (excludes input prediction)	1.150	us	1.6
+flap	5	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.800	us	1.6
+flap	5	final	scripted presentation accessors	0.120	us	1.6
+flap	5	final	Flap Woods unchanged-frame scene presentation	46.161	us	1.6
+flap	5	final	Flap Woods moving-frame scene presentation	55.316	us	1.6
+flap	5	final	Flap Woods scene with no-op presentation scripts	5.400	us	1.6
+simulation-512	6	base	tick_median	8.308	ms	3.0
+simulation-512	6	base	stage:Animation	0.000	ms	3.0
+simulation-512	6	base	stage:Audio	0.001	ms	3.0
+simulation-512	6	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	6	base	stage:Character movement	0.001	ms	3.0
+simulation-512	6	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	6	base	stage:Fixed tick	8.307	ms	3.0
+simulation-512	6	base	stage:Gameplay	8.302	ms	3.0
+simulation-512	6	base	stage:Interactions	0.545	ms	3.0
+simulation-512	6	base	stage:Navigation	0.000	ms	3.0
+simulation-512	6	base	stage:Particles	0.000	ms	3.0
+simulation-512	6	base	stage:Physics	0.743	ms	3.0
+simulation-512	6	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	6	base	stage:Script commands	6.387	ms	3.0
+simulation-512	6	base	stage:Script hooks	0.058	ms	3.0
+simulation-512	6	base	stage:Script read view	0.227	ms	3.0
+simulation-512	6	base	stage:Scripts	7.004	ms	3.0
+simulation-512	6	base	stage:Spin	0.002	ms	3.0
+simulation-512	6	base	stage:Sprites	0.001	ms	3.0
+simulation-512	6	base	stage:Timelines	0.001	ms	3.0
+simulation-512	6	base	stage:Tweens	0.000	ms	3.0
+simulation-512	6	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	6	final	tick_median	0.517	ms	0.2
+simulation-512	6	final	stage:Animation	0.000	ms	0.2
+simulation-512	6	final	stage:Audio	0.000	ms	0.2
+simulation-512	6	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	6	final	stage:Character movement	0.000	ms	0.2
+simulation-512	6	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	6	final	stage:Fixed tick	0.517	ms	0.2
+simulation-512	6	final	stage:Gameplay	0.516	ms	0.2
+simulation-512	6	final	stage:Interactions	0.039	ms	0.2
+simulation-512	6	final	stage:Navigation	0.000	ms	0.2
+simulation-512	6	final	stage:Particles	0.000	ms	0.2
+simulation-512	6	final	stage:Physics	0.161	ms	0.2
+simulation-512	6	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	6	final	stage:Script commands	0.145	ms	0.2
+simulation-512	6	final	stage:Script hooks	0.050	ms	0.2
+simulation-512	6	final	stage:Script read view	0.036	ms	0.2
+simulation-512	6	final	stage:Scripts	0.311	ms	0.2
+simulation-512	6	final	stage:Spin	0.000	ms	0.2
+simulation-512	6	final	stage:Sprites	0.000	ms	0.2
+simulation-512	6	final	stage:Timelines	0.000	ms	0.2
+simulation-512	6	final	stage:Tweens	0.000	ms	0.2
+simulation-512	6	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	6	base	tick_median	64.716	ms	23.4
+simulation-4096	6	base	stage:Animation	0.000	ms	23.4
+simulation-4096	6	base	stage:Audio	0.001	ms	23.4
+simulation-4096	6	base	stage:Blueprints	0.004	ms	23.4
+simulation-4096	6	base	stage:Character movement	0.001	ms	23.4
+simulation-4096	6	base	stage:Deferred changes	0.000	ms	23.4
+simulation-4096	6	base	stage:Fixed tick	64.716	ms	23.4
+simulation-4096	6	base	stage:Gameplay	64.709	ms	23.4
+simulation-4096	6	base	stage:Interactions	3.568	ms	23.4
+simulation-4096	6	base	stage:Navigation	0.000	ms	23.4
+simulation-4096	6	base	stage:Particles	0.000	ms	23.4
+simulation-4096	6	base	stage:Physics	6.080	ms	23.4
+simulation-4096	6	base	stage:Presentation history	0.000	ms	23.4
+simulation-4096	6	base	stage:Script commands	51.643	ms	23.4
+simulation-4096	6	base	stage:Script hooks	0.064	ms	23.4
+simulation-4096	6	base	stage:Script read view	1.520	ms	23.4
+simulation-4096	6	base	stage:Scripts	55.048	ms	23.4
+simulation-4096	6	base	stage:Spin	0.006	ms	23.4
+simulation-4096	6	base	stage:Sprites	0.001	ms	23.4
+simulation-4096	6	base	stage:Timelines	0.001	ms	23.4
+simulation-4096	6	base	stage:Tweens	0.000	ms	23.4
+simulation-4096	6	base	pose_digest	f8b7c97a503c0a6b	hex	23.4
+simulation-4096	6	final	tick_median	2.937	ms	1.1
+simulation-4096	6	final	stage:Animation	0.000	ms	1.1
+simulation-4096	6	final	stage:Audio	0.001	ms	1.1
+simulation-4096	6	final	stage:Blueprints	0.005	ms	1.1
+simulation-4096	6	final	stage:Character movement	0.001	ms	1.1
+simulation-4096	6	final	stage:Deferred changes	0.000	ms	1.1
+simulation-4096	6	final	stage:Fixed tick	2.937	ms	1.1
+simulation-4096	6	final	stage:Gameplay	2.936	ms	1.1
+simulation-4096	6	final	stage:Interactions	0.343	ms	1.1
+simulation-4096	6	final	stage:Navigation	0.000	ms	1.1
+simulation-4096	6	final	stage:Particles	0.000	ms	1.1
+simulation-4096	6	final	stage:Physics	1.130	ms	1.1
+simulation-4096	6	final	stage:Presentation history	0.000	ms	1.1
+simulation-4096	6	final	stage:Script commands	0.515	ms	1.1
+simulation-4096	6	final	stage:Script hooks	0.055	ms	1.1
+simulation-4096	6	final	stage:Script read view	0.252	ms	1.1
+simulation-4096	6	final	stage:Scripts	1.452	ms	1.1
+simulation-4096	6	final	stage:Spin	0.000	ms	1.1
+simulation-4096	6	final	stage:Sprites	0.000	ms	1.1
+simulation-4096	6	final	stage:Timelines	0.000	ms	1.1
+simulation-4096	6	final	stage:Tweens	0.000	ms	1.1
+simulation-4096	6	final	pose_digest	f8b7c97a503c0a6b	hex	1.1
+collisions-384	6	base	live_overlaps	0.142566	ms	0.1
+collisions-384	6	base	move_box	0.254147	ms	0.1
+collisions-384	6	final	live_overlaps	0.079200	ms	0.0
+collisions-384	6	final	move_box	0.045400	ms	0.0
+collisions-1536	6	base	live_overlaps	0.809821	ms	0.2
+collisions-1536	6	base	move_box	1.021248	ms	0.2
+collisions-1536	6	final	live_overlaps	0.544884	ms	0.1
+collisions-1536	6	final	move_box	0.165746	ms	0.1
+factory	6	base	tick_median	0.695	ms	0.3
+factory	6	base	stage:Animation	0.000	ms	0.3
+factory	6	base	stage:Audio	0.001	ms	0.3
+factory	6	base	stage:Blueprints	0.001	ms	0.3
+factory	6	base	stage:Character movement	0.000	ms	0.3
+factory	6	base	stage:Deferred changes	0.000	ms	0.3
+factory	6	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	6	base	stage:Factory co-op host	0.000	ms	0.3
+factory	6	base	stage:Factory session	0.001	ms	0.3
+factory	6	base	stage:Fixed tick	0.694	ms	0.3
+factory	6	base	stage:Gameplay	0.691	ms	0.3
+factory	6	base	stage:Interactions	0.000	ms	0.3
+factory	6	base	stage:Navigation	0.000	ms	0.3
+factory	6	base	stage:Particles	0.000	ms	0.3
+factory	6	base	stage:Physics	0.019	ms	0.3
+factory	6	base	stage:Presentation history	0.000	ms	0.3
+factory	6	base	stage:Script commands	0.006	ms	0.3
+factory	6	base	stage:Script hooks	0.488	ms	0.3
+factory	6	base	stage:Script read view	0.157	ms	0.3
+factory	6	base	stage:Scripts	0.668	ms	0.3
+factory	6	base	stage:Spin	0.001	ms	0.3
+factory	6	base	stage:Sprites	0.000	ms	0.3
+factory	6	base	stage:Timelines	0.000	ms	0.3
+factory	6	base	stage:Tweens	0.000	ms	0.3
+factory	6	final	tick_median	0.537	ms	0.3
+factory	6	final	stage:Animation	0.000	ms	0.3
+factory	6	final	stage:Audio	0.000	ms	0.3
+factory	6	final	stage:Blueprints	0.001	ms	0.3
+factory	6	final	stage:Character movement	0.000	ms	0.3
+factory	6	final	stage:Deferred changes	0.000	ms	0.3
+factory	6	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	6	final	stage:Factory co-op host	0.000	ms	0.3
+factory	6	final	stage:Factory session	0.000	ms	0.3
+factory	6	final	stage:Fixed tick	0.537	ms	0.3
+factory	6	final	stage:Gameplay	0.535	ms	0.3
+factory	6	final	stage:Interactions	0.000	ms	0.3
+factory	6	final	stage:Navigation	0.000	ms	0.3
+factory	6	final	stage:Particles	0.000	ms	0.3
+factory	6	final	stage:Physics	0.005	ms	0.3
+factory	6	final	stage:Presentation history	0.000	ms	0.3
+factory	6	final	stage:Script commands	0.006	ms	0.3
+factory	6	final	stage:Script hooks	0.484	ms	0.3
+factory	6	final	stage:Script read view	0.023	ms	0.3
+factory	6	final	stage:Scripts	0.527	ms	0.3
+factory	6	final	stage:Spin	0.000	ms	0.3
+factory	6	final	stage:Sprites	0.000	ms	0.3
+factory	6	final	stage:Timelines	0.000	ms	0.3
+factory	6	final	stage:Tweens	0.000	ms	0.3
+blueprints	6	base	tick	2.108	ms	0.7
+blueprints	6	final	tick	1.958	ms	0.6
+flap	6	base	host receive + scripted simulation	45.001	us	1.9
+flap	6	base	replica snapshot apply/replay (excludes input prediction)	1.170	us	1.9
+flap	6	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.945	us	1.9
+flap	6	base	scripted presentation accessors	0.120	us	1.9
+flap	6	base	Flap Woods unchanged-frame scene presentation	56.300	us	1.9
+flap	6	base	Flap Woods moving-frame scene presentation	72.150	us	1.9
+flap	6	base	Flap Woods scene with no-op presentation scripts	14.310	us	1.9
+flap	6	final	host receive + scripted simulation	45.130	us	1.6
+flap	6	final	replica snapshot apply/replay (excludes input prediction)	1.210	us	1.6
+flap	6	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.856	us	1.6
+flap	6	final	scripted presentation accessors	0.120	us	1.6
+flap	6	final	Flap Woods unchanged-frame scene presentation	46.060	us	1.6
+flap	6	final	Flap Woods moving-frame scene presentation	53.890	us	1.6
+flap	6	final	Flap Woods scene with no-op presentation scripts	5.240	us	1.6
+simulation-512	7	base	tick_median	8.380	ms	3.0
+simulation-512	7	base	stage:Animation	0.000	ms	3.0
+simulation-512	7	base	stage:Audio	0.001	ms	3.0
+simulation-512	7	base	stage:Blueprints	0.001	ms	3.0
+simulation-512	7	base	stage:Character movement	0.001	ms	3.0
+simulation-512	7	base	stage:Deferred changes	0.000	ms	3.0
+simulation-512	7	base	stage:Fixed tick	8.380	ms	3.0
+simulation-512	7	base	stage:Gameplay	8.377	ms	3.0
+simulation-512	7	base	stage:Interactions	0.544	ms	3.0
+simulation-512	7	base	stage:Navigation	0.000	ms	3.0
+simulation-512	7	base	stage:Particles	0.000	ms	3.0
+simulation-512	7	base	stage:Physics	0.739	ms	3.0
+simulation-512	7	base	stage:Presentation history	0.000	ms	3.0
+simulation-512	7	base	stage:Script commands	6.455	ms	3.0
+simulation-512	7	base	stage:Script hooks	0.057	ms	3.0
+simulation-512	7	base	stage:Script read view	0.226	ms	3.0
+simulation-512	7	base	stage:Scripts	7.076	ms	3.0
+simulation-512	7	base	stage:Spin	0.002	ms	3.0
+simulation-512	7	base	stage:Sprites	0.000	ms	3.0
+simulation-512	7	base	stage:Timelines	0.000	ms	3.0
+simulation-512	7	base	stage:Tweens	0.000	ms	3.0
+simulation-512	7	base	pose_digest	090639c8cbe7926b	hex	3.0
+simulation-512	7	final	tick_median	0.528	ms	0.2
+simulation-512	7	final	stage:Animation	0.000	ms	0.2
+simulation-512	7	final	stage:Audio	0.000	ms	0.2
+simulation-512	7	final	stage:Blueprints	0.001	ms	0.2
+simulation-512	7	final	stage:Character movement	0.001	ms	0.2
+simulation-512	7	final	stage:Deferred changes	0.000	ms	0.2
+simulation-512	7	final	stage:Fixed tick	0.528	ms	0.2
+simulation-512	7	final	stage:Gameplay	0.527	ms	0.2
+simulation-512	7	final	stage:Interactions	0.040	ms	0.2
+simulation-512	7	final	stage:Navigation	0.000	ms	0.2
+simulation-512	7	final	stage:Particles	0.000	ms	0.2
+simulation-512	7	final	stage:Physics	0.164	ms	0.2
+simulation-512	7	final	stage:Presentation history	0.000	ms	0.2
+simulation-512	7	final	stage:Script commands	0.146	ms	0.2
+simulation-512	7	final	stage:Script hooks	0.052	ms	0.2
+simulation-512	7	final	stage:Script read view	0.036	ms	0.2
+simulation-512	7	final	stage:Scripts	0.316	ms	0.2
+simulation-512	7	final	stage:Spin	0.000	ms	0.2
+simulation-512	7	final	stage:Sprites	0.000	ms	0.2
+simulation-512	7	final	stage:Timelines	0.000	ms	0.2
+simulation-512	7	final	stage:Tweens	0.000	ms	0.2
+simulation-512	7	final	pose_digest	090639c8cbe7926b	hex	0.2
+simulation-4096	7	base	tick_median	64.931	ms	23.6
+simulation-4096	7	base	stage:Animation	0.000	ms	23.6
+simulation-4096	7	base	stage:Audio	0.001	ms	23.6
+simulation-4096	7	base	stage:Blueprints	0.004	ms	23.6
+simulation-4096	7	base	stage:Character movement	0.001	ms	23.6
+simulation-4096	7	base	stage:Deferred changes	0.000	ms	23.6
+simulation-4096	7	base	stage:Fixed tick	64.930	ms	23.6
+simulation-4096	7	base	stage:Gameplay	64.922	ms	23.6
+simulation-4096	7	base	stage:Interactions	3.569	ms	23.6
+simulation-4096	7	base	stage:Navigation	0.000	ms	23.6
+simulation-4096	7	base	stage:Particles	0.000	ms	23.6
+simulation-4096	7	base	stage:Physics	6.063	ms	23.6
+simulation-4096	7	base	stage:Presentation history	0.000	ms	23.6
+simulation-4096	7	base	stage:Script commands	51.845	ms	23.6
+simulation-4096	7	base	stage:Script hooks	0.063	ms	23.6
+simulation-4096	7	base	stage:Script read view	1.514	ms	23.6
+simulation-4096	7	base	stage:Scripts	55.250	ms	23.6
+simulation-4096	7	base	stage:Spin	0.005	ms	23.6
+simulation-4096	7	base	stage:Sprites	0.001	ms	23.6
+simulation-4096	7	base	stage:Timelines	0.001	ms	23.6
+simulation-4096	7	base	stage:Tweens	0.000	ms	23.6
+simulation-4096	7	base	pose_digest	f8b7c97a503c0a6b	hex	23.6
+simulation-4096	7	final	tick_median	2.915	ms	1.1
+simulation-4096	7	final	stage:Animation	0.000	ms	1.1
+simulation-4096	7	final	stage:Audio	0.001	ms	1.1
+simulation-4096	7	final	stage:Blueprints	0.005	ms	1.1
+simulation-4096	7	final	stage:Character movement	0.001	ms	1.1
+simulation-4096	7	final	stage:Deferred changes	0.000	ms	1.1
+simulation-4096	7	final	stage:Fixed tick	2.915	ms	1.1
+simulation-4096	7	final	stage:Gameplay	2.913	ms	1.1
+simulation-4096	7	final	stage:Interactions	0.341	ms	1.1
+simulation-4096	7	final	stage:Navigation	0.000	ms	1.1
+simulation-4096	7	final	stage:Particles	0.000	ms	1.1
+simulation-4096	7	final	stage:Physics	1.119	ms	1.1
+simulation-4096	7	final	stage:Presentation history	0.000	ms	1.1
+simulation-4096	7	final	stage:Script commands	0.519	ms	1.1
+simulation-4096	7	final	stage:Script hooks	0.054	ms	1.1
+simulation-4096	7	final	stage:Script read view	0.252	ms	1.1
+simulation-4096	7	final	stage:Scripts	1.445	ms	1.1
+simulation-4096	7	final	stage:Spin	0.000	ms	1.1
+simulation-4096	7	final	stage:Sprites	0.000	ms	1.1
+simulation-4096	7	final	stage:Timelines	0.000	ms	1.1
+simulation-4096	7	final	stage:Tweens	0.000	ms	1.1
+simulation-4096	7	final	pose_digest	f8b7c97a503c0a6b	hex	1.1
+collisions-384	7	base	live_overlaps	0.142406	ms	0.1
+collisions-384	7	base	move_box	0.246547	ms	0.1
+collisions-384	7	final	live_overlaps	0.078946	ms	0.0
+collisions-384	7	final	move_box	0.046800	ms	0.0
+collisions-1536	7	base	live_overlaps	0.808060	ms	0.2
+collisions-1536	7	base	move_box	1.008317	ms	0.2
+collisions-1536	7	final	live_overlaps	0.544628	ms	0.1
+collisions-1536	7	final	move_box	0.166066	ms	0.1
+factory	7	base	tick_median	0.698	ms	0.3
+factory	7	base	stage:Animation	0.000	ms	0.3
+factory	7	base	stage:Audio	0.001	ms	0.3
+factory	7	base	stage:Blueprints	0.001	ms	0.3
+factory	7	base	stage:Character movement	0.000	ms	0.3
+factory	7	base	stage:Deferred changes	0.000	ms	0.3
+factory	7	base	stage:Factory co-op guest	0.000	ms	0.3
+factory	7	base	stage:Factory co-op host	0.000	ms	0.3
+factory	7	base	stage:Factory session	0.001	ms	0.3
+factory	7	base	stage:Fixed tick	0.697	ms	0.3
+factory	7	base	stage:Gameplay	0.694	ms	0.3
+factory	7	base	stage:Interactions	0.000	ms	0.3
+factory	7	base	stage:Navigation	0.000	ms	0.3
+factory	7	base	stage:Particles	0.000	ms	0.3
+factory	7	base	stage:Physics	0.019	ms	0.3
+factory	7	base	stage:Presentation history	0.000	ms	0.3
+factory	7	base	stage:Script commands	0.007	ms	0.3
+factory	7	base	stage:Script hooks	0.488	ms	0.3
+factory	7	base	stage:Script read view	0.158	ms	0.3
+factory	7	base	stage:Scripts	0.670	ms	0.3
+factory	7	base	stage:Spin	0.001	ms	0.3
+factory	7	base	stage:Sprites	0.000	ms	0.3
+factory	7	base	stage:Timelines	0.000	ms	0.3
+factory	7	base	stage:Tweens	0.000	ms	0.3
+factory	7	final	tick_median	0.536	ms	0.3
+factory	7	final	stage:Animation	0.000	ms	0.3
+factory	7	final	stage:Audio	0.000	ms	0.3
+factory	7	final	stage:Blueprints	0.001	ms	0.3
+factory	7	final	stage:Character movement	0.000	ms	0.3
+factory	7	final	stage:Deferred changes	0.000	ms	0.3
+factory	7	final	stage:Factory co-op guest	0.000	ms	0.3
+factory	7	final	stage:Factory co-op host	0.000	ms	0.3
+factory	7	final	stage:Factory session	0.000	ms	0.3
+factory	7	final	stage:Fixed tick	0.535	ms	0.3
+factory	7	final	stage:Gameplay	0.534	ms	0.3
+factory	7	final	stage:Interactions	0.000	ms	0.3
+factory	7	final	stage:Navigation	0.000	ms	0.3
+factory	7	final	stage:Particles	0.000	ms	0.3
+factory	7	final	stage:Physics	0.005	ms	0.3
+factory	7	final	stage:Presentation history	0.000	ms	0.3
+factory	7	final	stage:Script commands	0.006	ms	0.3
+factory	7	final	stage:Script hooks	0.482	ms	0.3
+factory	7	final	stage:Script read view	0.023	ms	0.3
+factory	7	final	stage:Scripts	0.525	ms	0.3
+factory	7	final	stage:Spin	0.000	ms	0.3
+factory	7	final	stage:Sprites	0.000	ms	0.3
+factory	7	final	stage:Timelines	0.000	ms	0.3
+factory	7	final	stage:Tweens	0.000	ms	0.3
+blueprints	7	base	tick	2.082	ms	0.7
+blueprints	7	final	tick	1.962	ms	0.6
+flap	7	base	host receive + scripted simulation	44.991	us	1.9
+flap	7	base	replica snapshot apply/replay (excludes input prediction)	1.140	us	1.9
+flap	7	base	replica prediction + snapshot apply/replay (6-tick snapshot delay)	8.260	us	1.9
+flap	7	base	scripted presentation accessors	0.120	us	1.9
+flap	7	base	Flap Woods unchanged-frame scene presentation	55.750	us	1.9
+flap	7	base	Flap Woods moving-frame scene presentation	70.890	us	1.9
+flap	7	base	Flap Woods scene with no-op presentation scripts	14.321	us	1.9
+flap	7	final	host receive + scripted simulation	44.390	us	1.6
+flap	7	final	replica snapshot apply/replay (excludes input prediction)	1.160	us	1.6
+flap	7	final	replica prediction + snapshot apply/replay (6-tick snapshot delay)	7.695	us	1.6
+flap	7	final	scripted presentation accessors	0.120	us	1.6
+flap	7	final	Flap Woods unchanged-frame scene presentation	45.531	us	1.6
+flap	7	final	Flap Woods moving-frame scene presentation	53.850	us	1.6
+flap	7	final	Flap Woods scene with no-op presentation scripts	5.250	us	1.6

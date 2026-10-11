@@ -1,0 +1,22 @@
+started: 2026-10-10T19:04:06+02:00
+host: Linux 7.2.9-arch1-1 x86_64
+cpu: AMD Ryzen 9 5950X 16-Core Processor
+governor: powersave
+pairs: 7
+pinned cpu: none
+benchmarks: all
+base revision: 15a4b7adeddeb59a0f9198c5b7a579ebbbd55a48
+built in /home/lord/Documents/bozzard-perf/runtime-transforms-base
+base sha256: e141ab9b63865cf5f83cf02fe4a68b9e8a3045cbe30911d5ed7d1412bf1d410a  benchmark_blueprints
+base sha256: 3af2245a161093f7e229298fbc5cd4a7de752181abe8351bbc10d7a531b8c793  benchmark_collisions
+base sha256: 199013e81ec1546a6d21351a1799b4f004859d8e5b504835dc61b9b4049bc61b  benchmark_factory
+base sha256: 339577b4a87d84f40ad2261c68f977de7268bd6620847e5741bb3e18ecfb82f4  benchmark_simulation
+base sha256: 431d6ec939ef64dd7c65a4ad8120bfcc4cc5236ef7edc9aac85d8e4925124d08  flap_multiplayer_perf
+final revision: 60dbdf23e187cf9ca60646fff75f61f522dcd41c
+built in /home/lord/Documents/bozzard-perf/runtime-transforms (perf/runtime-transforms), target/release
+final sha256: 39805dfb8638aa644ac2ebd4f6bcb942571911e680b08ce752c7422f2aa19ca5  benchmark_blueprints
+final sha256: 6ff595e12020bb4cfcf74cde580951755dd4393180bfe7671d108a59c7b769d7  benchmark_collisions
+final sha256: c755a0dea9a353c1961a70f07e10d0a7c64ce0c49993c27558f8483fe1ce5b3c  benchmark_factory
+final sha256: 7141028842d05186bd8168560ae95c9d2b21651d8635beaaf5d533dbcf90af44  benchmark_simulation
+final sha256: e13fef4af6a1e9f6fbd5985a682095a34132cbb145084eb0324da829e6d1ae76  flap_multiplayer_perf
+finished: 2026-10-10T19:08:03+02:00

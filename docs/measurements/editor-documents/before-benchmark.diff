@@ -1,0 +1,45 @@
+--- a/crates/bozzard-editor/examples/benchmark_documents.rs
++++ b/crates/bozzard-editor/examples/benchmark_documents.rs
+@@ -166,17 +166,18 @@
+         black_box(self.scenes.any_dirty(&self.editor));
+         Ok(())
+     }
++    // Base port: before Editor::world_transforms, the light overlay validated the
++    // document and built an ID-keyed map each frame.
+     fn light_transforms(&self) -> Result<usize> {
+-        let matrices = self.editor.world_transforms()?;
++        let matrices = self.editor.scene().global_transforms()?;
+         Ok(self
+             .editor
+             .scene()
+             .objects
+             .iter()
+-            .zip(matrices.matrices())
+-            .filter(|(o, _)| o.light.is_some() || o.camera.is_some())
+-            .inspect(|(_, matrix)| {
+-                black_box(matrix);
++            .filter(|o| o.light.is_some() || o.camera.is_some())
++            .inspect(|o| {
++                black_box(matrices[&o.id]);
+             })
+             .count())
+     }
+@@ -384,15 +385,15 @@
+             Ok(store)
+         },
+     )?;
+-    // The editor's usual pass compares file metadata only (sources settled long ago).
++    // The editor's usual 500 ms pass. Base port: before RefreshScan, every pass read and
++    // compared every source.
+     measure_n(
+         "pagoda_hot_reload_changed_scan",
+         200,
+         &mut session,
+         |session| Ok(session.editor.assets.clone()),
+         |_, mut store| {
+-            let changed =
+-                store.refresh_scan(bozzard_assets::RefreshScan::Changed, &Default::default())?;
++            let changed = store.refresh_with(&Default::default())?;
+             ensure!(changed.is_empty(), "nothing changed on disk");
+             Ok(store)
+         },

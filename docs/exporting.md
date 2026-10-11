@@ -119,6 +119,9 @@ removed on normal exit. A crash can leave that temporary directory behind. Missi
 damaged packs fail startup instead of falling back to the embedded demo. Existing loose
 exports remain supported by their matching runtime.
 
+Exported games read each user's [player settings](player-settings.md) before opening their
+window and write [crash reports](debugging.md#crash-reports) on panic; neither needs setup.
+
 Compression deters casual file editing; it is not encryption, signing or anti-cheat.
 A determined recipient can recover scripts or rebuild a pack and its checksums. Gameplay
 that requires trusted authority must enforce its rules outside the recipient's client.

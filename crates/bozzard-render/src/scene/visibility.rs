@@ -178,6 +178,9 @@ pub struct FrameStats {
     /// Logical bytes retained by the opaque pass's three RGBA16F auxiliary targets.
     /// Not measured memory traffic.
     pub geometry_store_bytes: u64,
+    /// Bind groups created for temporal resolve, exposure metering, depth of
+    /// field, bloom and the display pass; temporal ping-pong reuses them.
+    pub post_bind_groups: usize,
     /// Color-pass mesh pipeline binds; excludes sky, shadow and display passes.
     pub pipeline_binds: usize,
     pub material_binds: usize,

@@ -165,7 +165,7 @@ impl Editor {
             self.future.clear();
         }
         self.scene = scene.clone();
-        self.saved = scene;
+        self.saved = Some(scene);
         self.path = path;
         self.prefab_source = prefab_source;
         if self.play.is_some() {

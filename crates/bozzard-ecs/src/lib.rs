@@ -24,6 +24,7 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -64,6 +65,52 @@ impl fmt::Display for AliasedQuery {
     }
 }
 impl std::error::Error for AliasedQuery {}
+
+/// `TypeId` is already a uniformly distributed hash and writes itself as one `u64`, so
+/// storage and resource lookups skip SipHash. Other writes still mix every byte.
+#[derive(Default)]
+struct TypeIdHasher(u64);
+
+impl Hasher for TypeIdHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0 ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+        }
+    }
+    fn write_u64(&mut self, value: u64) {
+        self.0 = self.0.rotate_left(5) ^ value;
+    }
+}
+
+type TypeMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
+
+/// Entity handles come from a world, not from untrusted input, so maps keyed by them can
+/// use a multiplicative hash, as rustc's FxHash does, instead of SipHash.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EntityHasher(u64);
+
+impl Hasher for EntityHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.write_u64(u64::from(byte));
+        }
+    }
+    fn write_u32(&mut self, value: u32) {
+        self.write_u64(u64::from(value));
+    }
+    fn write_u64(&mut self, value: u64) {
+        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+/// A hash map keyed by entity handles.
+pub type EntityMap<V> = HashMap<Entity, V, BuildHasherDefault<EntityHasher>>;
 
 struct Slot {
     generation: u32,
@@ -283,8 +330,8 @@ pub struct World {
     slots: Vec<Slot>,
     free: Vec<u32>,
     len: usize,
-    components: HashMap<TypeId, Box<dyn ErasedStorage>>,
-    resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    components: TypeMap<Box<dyn ErasedStorage>>,
+    resources: TypeMap<Box<dyn Any + Send + Sync>>,
     change_tick: u64,
     mutation_revision: u64,
     component_mutation_revision: u64,
@@ -300,8 +347,8 @@ impl Default for World {
             slots: Vec::new(),
             free: Vec::new(),
             len: 0,
-            components: HashMap::new(),
-            resources: HashMap::new(),
+            components: TypeMap::default(),
+            resources: TypeMap::default(),
             // Ticks start at 1 so that a bookmark of 0 means "everything ever written".
             change_tick: 1,
             mutation_revision: 0,
@@ -668,6 +715,20 @@ mod tests {
         let foreign = World::new().spawn();
         assert!(world.insert(foreign, 30_i32).is_err());
         assert_eq!(world.len(), 1);
+    }
+
+    #[test]
+    fn entity_maps_tell_generations_and_worlds_apart() {
+        let mut world = World::new();
+        let mut map = EntityMap::default();
+        let old = world.spawn();
+        map.insert(old, 1);
+        world.despawn(old).unwrap();
+        let recycled = world.spawn();
+        map.insert(recycled, 2);
+        let foreign = World::new().spawn();
+        map.insert(foreign, 3);
+        assert_eq!((map[&old], map[&recycled], map[&foreign]), (1, 2, 3));
     }
 
     #[test]

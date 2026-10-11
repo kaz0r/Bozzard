@@ -318,6 +318,8 @@ to one CPU. The numbers below are medians of the four per-run medians; each run 
 The moving-frame and no-op scene paths were slower in this CPU-only measurement. This
 does not establish a full native frame-rate change; inspect those paths under a native
 capture before attributing the difference to any one allocation or optimizing it.
+Later Linux measurements of the runtime transform and script tick changes cover these
+paths too; see [runtime transform measurements](measurements/runtime-transforms.md).
 For a debug build (`cargo run`), Flap Woods unchanged-frame scene presentation measured
 3,237.021 / 3,660.083 µs median / p99 before and 602.250 / 927.250 µs after.
 

@@ -3,7 +3,6 @@ use super::{Animator, Player, Repeat, RootMotion, data::Pose, motion::Mix, warp}
 use crate::{Transform, middleware::curve::Playhead};
 use anyhow::{Result, ensure};
 use glam::{EulerRot, Mat4, Quat, Vec3};
-use std::collections::BTreeMap;
 
 pub(super) struct Step<'a> {
     pub before: Playhead,
@@ -11,7 +10,7 @@ pub(super) struct Step<'a> {
     pub mix: Mix,
     pub local: Transform,
     pub model: Mat4,
-    pub objects: &'a BTreeMap<String, Mat4>,
+    pub objects: &'a crate::transforms::Matrices<'a>,
 }
 struct Path<'a> {
     animator: &'a Animator,

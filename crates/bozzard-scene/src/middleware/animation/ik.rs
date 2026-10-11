@@ -193,7 +193,7 @@ pub struct IkState {
 pub(crate) struct Context<'a> {
     pub owner: &'a str,
     pub model: Mat4,
-    pub objects: &'a BTreeMap<String, Mat4>,
+    pub objects: &'a crate::transforms::Matrices<'a>,
     pub collisions: &'a CollisionSnapshot,
     pub rest_globals: &'a [Mat4],
     pub dt: f32,

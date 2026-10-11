@@ -6,8 +6,10 @@ impl ApplicationHandler for Player {
         if self.view.is_some() {
             return;
         }
-        match View::new(event_loop, &self.options, None) {
+        let (player_settings, revision) = settings::applied(&self.demo);
+        match View::new(event_loop, &self.options, &player_settings, None) {
             Ok(mut view) => {
+                view.settings_revision = revision;
                 let uploaded = (|| {
                     let render = extract(
                         &self.demo,
@@ -468,6 +470,10 @@ impl ApplicationHandler for Player {
             return;
         }
         if event_loop.exiting() {
+            return;
+        }
+        if let Err(error) = self.sync_settings() {
+            self.fail(event_loop, error);
             return;
         }
         // Some window systems stop redraw events while minimized. Accepted compute requests and

@@ -303,6 +303,8 @@ pub(super) struct MotionHistory {
     poses: Poses,
     sample: u32,
     pending: Option<PendingFrame>,
+    /// Irradiance probes are immutable while shared; hash each allocation once.
+    probes: Option<(std::sync::Arc<Vec<[f32; 4]>>, u64)>,
 }
 fn halton(mut index: u32, base: u32) -> f32 {
     let mut weight = 1.;
@@ -334,7 +336,7 @@ impl MotionHistory {
             });
             return (scene.view_projection, TemporalFrame::default());
         }
-        let signature = frame_signature(scene);
+        let signature = frame_signature(scene, &mut self.probes);
         let time = scene.display.time_seconds;
         let mut frame = TemporalFrame::default();
         if let Some(PreviousFrame {
@@ -431,31 +433,231 @@ impl MotionHistory {
     }
 }
 
-fn frame_signature(scene: &RenderScene) -> u64 {
+/// Streaming xxHash64 rounds: frame signatures hash megabytes of floats, where
+/// SipHash's per-value cost dominated temporal setup.
+struct Signature {
+    lanes: [u64; 4],
+    buffer: [u8; 32],
+    buffered: usize,
+    length: u64,
+}
+const P1: u64 = 0x9e37_79b1_85eb_ca87;
+const P2: u64 = 0xc2b2_ae3d_27d4_eb4f;
+const P3: u64 = 0x1656_67b1_9e37_79f9;
+const P4: u64 = 0x85eb_ca77_c2b2_ae63;
+const P5: u64 = 0x27d4_eb2f_1656_67c5;
+fn round(lane: u64, input: u64) -> u64 {
+    lane.wrapping_add(input.wrapping_mul(P2))
+        .rotate_left(31)
+        .wrapping_mul(P1)
+}
+fn word(bytes: &[u8]) -> u64 {
+    u64::from_le_bytes(bytes[..8].try_into().unwrap())
+}
+impl Signature {
+    fn new() -> Self {
+        Self {
+            lanes: [P1.wrapping_add(P2), P2, 0, P1.wrapping_neg()],
+            buffer: [0; 32],
+            buffered: 0,
+            length: 0,
+        }
+    }
+    fn stripe(lanes: &mut [u64; 4], bytes: &[u8]) {
+        for (lane, input) in lanes.iter_mut().zip(bytes.chunks_exact(8)) {
+            *lane = round(*lane, word(input));
+        }
+    }
+    /// Float bits in one write; the byte stream equals per-value writes.
+    fn floats(&mut self, values: &[f32]) {
+        let mut record = [0; 128];
+        for values in values.chunks(32) {
+            for (slot, value) in record.chunks_exact_mut(4).zip(values) {
+                slot.copy_from_slice(&value.to_bits().to_le_bytes());
+            }
+            std::hash::Hasher::write(self, &record[..values.len() * 4]);
+        }
+    }
+    /// Model matrix, tint and UV scale, then the optional PBR factors that
+    /// are present, matching the original value stream.
+    fn surface(
+        &mut self,
+        model: Mat4,
+        tint: [f32; 3],
+        uv_scale: [f32; 2],
+        factors: [Option<f32>; 2],
+    ) {
+        let mut values = [0.; 23];
+        values[..16].copy_from_slice(&model.to_cols_array());
+        values[16..19].copy_from_slice(&tint);
+        values[19..21].copy_from_slice(&uv_scale);
+        let mut count = 21;
+        for factor in factors.into_iter().flatten() {
+            values[count] = factor;
+            count += 1;
+        }
+        self.floats(&values[..count]);
+    }
+}
+impl std::hash::Hasher for Signature {
+    fn write(&mut self, mut bytes: &[u8]) {
+        self.length += bytes.len() as u64;
+        if self.buffered > 0 {
+            let take = bytes.len().min(32 - self.buffered);
+            self.buffer[self.buffered..self.buffered + take].copy_from_slice(&bytes[..take]);
+            self.buffered += take;
+            bytes = &bytes[take..];
+            if self.buffered < 32 {
+                return;
+            }
+            Self::stripe(&mut self.lanes, &self.buffer);
+            self.buffered = 0;
+        }
+        let stripes = bytes.len() / 32 * 32;
+        for chunk in bytes[..stripes].chunks_exact(32) {
+            Self::stripe(&mut self.lanes, chunk);
+        }
+        let rest = &bytes[stripes..];
+        self.buffer[..rest.len()].copy_from_slice(rest);
+        self.buffered = rest.len();
+    }
+    fn finish(&self) -> u64 {
+        let [a, b, c, d] = self.lanes;
+        let mut hash = a
+            .rotate_left(1)
+            .wrapping_add(b.rotate_left(7))
+            .wrapping_add(c.rotate_left(12))
+            .wrapping_add(d.rotate_left(18));
+        for lane in self.lanes {
+            hash = (hash ^ round(0, lane)).wrapping_mul(P1).wrapping_add(P4);
+        }
+        hash = hash.wrapping_add(self.length);
+        let mut tail = &self.buffer[..self.buffered];
+        while tail.len() >= 8 {
+            hash = (hash ^ round(0, word(tail)))
+                .rotate_left(27)
+                .wrapping_mul(P1)
+                .wrapping_add(P4);
+            tail = &tail[8..];
+        }
+        for &byte in tail {
+            hash = (hash ^ u64::from(byte).wrapping_mul(P5))
+                .rotate_left(11)
+                .wrapping_mul(P1);
+        }
+        hash ^= hash >> 33;
+        hash = hash.wrapping_mul(P2);
+        hash ^= hash >> 29;
+        hash = hash.wrapping_mul(P3);
+        hash ^ hash >> 32
+    }
+}
+
+/// Settings fields in declaration order, compared by exact float bits. The
+/// exhaustive patterns make a new field a compile error until it is hashed.
+trait Signed {
+    fn sign(&self, hash: &mut Signature);
+}
+impl Signed for f32 {
+    fn sign(&self, hash: &mut Signature) {
+        std::hash::Hasher::write_u32(hash, self.to_bits());
+    }
+}
+impl Signed for u32 {
+    fn sign(&self, hash: &mut Signature) {
+        std::hash::Hasher::write_u32(hash, *self);
+    }
+}
+impl Signed for bool {
+    fn sign(&self, hash: &mut Signature) {
+        std::hash::Hasher::write_u8(hash, u8::from(*self));
+    }
+}
+impl<T: Signed, const N: usize> Signed for [T; N] {
+    fn sign(&self, hash: &mut Signature) {
+        for value in self {
+            value.sign(hash);
+        }
+    }
+}
+impl<T: Signed> Signed for Option<T> {
+    fn sign(&self, hash: &mut Signature) {
+        self.is_some().sign(hash);
+        if let Some(value) = self {
+            value.sign(hash);
+        }
+    }
+}
+impl Signed for ToneMapper {
+    fn sign(&self, hash: &mut Signature) {
+        std::hash::Hasher::write_u8(hash, *self as u8);
+    }
+}
+macro_rules! signed {
+    ($($type:ident { $($field:ident),* $(,)? })*) => {$(
+        impl Signed for $type {
+            fn sign(&self, hash: &mut Signature) {
+                let $type { $($field),* } = self;
+                $($field.sign(hash);)*
+            }
+        }
+    )*};
+}
+signed! {
+    DisplaySettings {
+        temporal_aa, motion_blur, reflections, time_seconds, bloom, tone_mapper,
+        color_grading, ambient_occlusion, heat_distortion, grain, vignette,
+        depth_of_field, auto_exposure, volumetric_fog, exposure_ev, tone_mapping,
+    }
+    TemporalAntiAliasing { enabled, history_weight }
+    MotionBlur { enabled, shutter_angle, max_radius, samples }
+    ScreenSpaceReflections { enabled, strength, max_distance, thickness, roughness_cutoff, steps }
+    BloomSettings { enabled, intensity, threshold, scatter, anamorphic }
+    ColorGrading { temperature, tint, saturation, contrast, lift, gamma, gain }
+    AmbientOcclusion { enabled, intensity, radius, bias }
+    HeatDistortion { enabled, strength, threshold, speed, rise }
+    FilmGrain { intensity, size }
+    Vignette { intensity, roundness, feather }
+    DepthOfField { enabled, focus_distance, focal_length_mm, aperture, max_blur_radius }
+    AutoExposure {
+        enabled, strength, min_ev, max_ev, target_gray, speed_up, speed_down, center_weight,
+    }
+    VolumetricFog {
+        enabled, density, albedo, anisotropy, base_height, height_falloff, start_distance,
+        max_distance, noise_amount, noise_scale, wind, light_intensity, ambient, steps,
+    }
+    Lighting {
+        shadows, shadow_resolution, shadow_bias, shadow_normal_bias, sun_direction, sun_color,
+        sun_intensity, ambient_color, ambient_intensity,
+    }
+    FogSettings {
+        enabled, color, distance_density, start_distance, height_density, base_height,
+        height_falloff,
+    }
+    EnvironmentSettings { zenith, horizon, ground, intensity, star_intensity, background }
+    LocalShadowSettings { bias, normal_bias }
+    LocalLight { directional, position, direction, color, intensity, range, spot_angles, shadows }
+}
+
+/// Content identity of everything a temporally repeated frame must share;
+/// only equality between consecutive frames is used. Probe data is hashed
+/// once per shared allocation.
+fn frame_signature(
+    scene: &RenderScene,
+    probes: &mut Option<(std::sync::Arc<Vec<[f32; 4]>>, u64)>,
+) -> u64 {
     use std::hash::{Hash, Hasher};
-    let mut hash = std::collections::hash_map::DefaultHasher::new();
-    fn floats(values: impl IntoIterator<Item = f32>, hash: &mut impl Hasher) {
-        for value in values {
-            value.to_bits().hash(hash);
-        }
+    let mut hash = Signature::new();
+    hash.floats(&scene.view_projection.to_cols_array());
+    scene.display.sign(&mut hash);
+    scene.lighting.sign(&mut hash);
+    scene.fog.sign(&mut hash);
+    scene.environment.sign(&mut hash);
+    hash.write_usize(scene.lights.len());
+    for light in &scene.lights {
+        light.sign(&mut hash);
     }
-    floats(scene.view_projection.to_cols_array(), &mut hash);
-    // Only small settings use Debug; geometry and potentially large GI grids
-    // are hashed directly, with no per-frame scene serialization/allocation.
-    struct HashWriter<'a, H>(&'a mut H);
-    impl<H: Hasher> std::fmt::Write for HashWriter<'_, H> {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            self.0.write(text.as_bytes());
-            Ok(())
-        }
-    }
-    let _ = std::fmt::Write::write_fmt(
-        &mut HashWriter(&mut hash),
-        format_args!(
-            "{:?}{:?}{:?}{:?}{:?}",
-            scene.display, scene.lighting, scene.fog, scene.environment, scene.lights
-        ),
-    );
+    hash.write_usize(scene.items.len());
     for item in &scene.items {
         item.motion_id.hash(&mut hash);
         MotionMeshRef::from(&item.mesh).hash(&mut hash);
@@ -464,67 +666,76 @@ fn frame_signature(scene: &RenderScene) -> u64 {
             text.monospace.hash(&mut hash);
             std::mem::discriminant(&text.alignment).hash(&mut hash);
             text.max_width.map(f32::to_bits).hash(&mut hash);
-            floats([text.font_size, text.opacity], &mut hash);
+            hash.floats(&[text.font_size, text.opacity]);
         }
         item.material.texture.hash(&mut hash);
         item.material.lit.hash(&mut hash);
-        floats(
-            item.model
-                .to_cols_array()
-                .into_iter()
-                .chain(item.material.tint)
-                .chain(item.material.uv_scale)
-                .chain(item.material.metallic)
-                .chain(item.material.roughness),
-            &mut hash,
+        let material = &item.material;
+        hash.surface(
+            item.model,
+            material.tint,
+            material.uv_scale,
+            [material.metallic, material.roughness],
         );
+        hash.write_usize(item.material.surface_overrides.len());
         for surface in item.material.surface_overrides.iter() {
             surface.surface.hash(&mut hash);
             surface.source.hash(&mut hash);
             surface.texture.hash(&mut hash);
-            floats(
-                surface
-                    .transform
-                    .to_cols_array()
-                    .into_iter()
-                    .chain(surface.tint)
-                    .chain(surface.uv_scale)
-                    .chain(surface.metallic)
-                    .chain(surface.roughness),
-                &mut hash,
+            hash.surface(
+                surface.transform,
+                surface.tint,
+                surface.uv_scale,
+                [surface.metallic, surface.roughness],
             );
         }
     }
+    hash.write_usize(scene.particles.len());
     for p in &scene.particles {
-        p.id.hash(&mut hash);
-        p.kind.hash(&mut hash);
-        floats(
-            p.position
-                .to_array()
-                .into_iter()
-                .chain(p.velocity.to_array())
-                .chain(p.color)
-                .chain([
-                    p.size,
-                    p.rotation,
-                    p.opacity,
-                    p.softness,
-                    p.trail_length,
-                    p.seed,
-                ]),
-            &mut hash,
-        );
+        let [x, y, z] = p.position.to_array();
+        let [vx, vy, vz] = p.velocity.to_array();
+        let [r, g, b] = p.color;
+        let values = [
+            x,
+            y,
+            z,
+            vx,
+            vy,
+            vz,
+            r,
+            g,
+            b,
+            p.size,
+            p.rotation,
+            p.opacity,
+            p.softness,
+            p.trail_length,
+            p.seed,
+        ];
+        let mut record = [0; 12 + 4 * 15];
+        record[..8].copy_from_slice(&p.id.to_le_bytes());
+        record[8..12].copy_from_slice(&(p.kind as u32).to_le_bytes());
+        for (slot, value) in record[12..].chunks_exact_mut(4).zip(values) {
+            slot.copy_from_slice(&value.to_bits().to_le_bytes());
+        }
+        hash.write(&record);
     }
     if let Some(gi) = &scene.gi {
         gi.resolution.hash(&mut hash);
-        floats(
-            gi.min
-                .into_iter()
-                .chain(gi.max)
-                .chain([gi.intensity, gi.normal_bias])
-                .chain(gi.probes.iter().flatten().copied()),
-            &mut hash,
-        );
+        let [a, b, c] = gi.min;
+        let [d, e, f] = gi.max;
+        hash.floats(&[a, b, c, d, e, f, gi.intensity, gi.normal_bias]);
+        if probes
+            .as_ref()
+            .is_none_or(|(data, _)| !std::sync::Arc::ptr_eq(data, &gi.probes))
+        {
+            let mut content = Signature::new();
+            content.floats(gi.probes.as_flattened());
+            *probes = Some((gi.probes.clone(), content.finish()));
+        }
+        hash.write_u64(probes.as_ref().unwrap().1);
+    } else {
+        *probes = None;
     }
     hash.finish()
 }
@@ -532,6 +743,259 @@ fn frame_signature(scene: &RenderScene) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The former SipHash/Debug signature, kept to compare repeat decisions.
+    fn reference_signature(scene: &RenderScene) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        fn floats(values: impl IntoIterator<Item = f32>, hash: &mut impl Hasher) {
+            for value in values {
+                value.to_bits().hash(hash);
+            }
+        }
+        floats(scene.view_projection.to_cols_array(), &mut hash);
+        struct HashWriter<'a, H>(&'a mut H);
+        impl<H: Hasher> std::fmt::Write for HashWriter<'_, H> {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                self.0.write(text.as_bytes());
+                Ok(())
+            }
+        }
+        let _ = std::fmt::Write::write_fmt(
+            &mut HashWriter(&mut hash),
+            format_args!(
+                "{:?}{:?}{:?}{:?}{:?}",
+                scene.display, scene.lighting, scene.fog, scene.environment, scene.lights
+            ),
+        );
+        for item in &scene.items {
+            item.motion_id.hash(&mut hash);
+            MotionMeshRef::from(&item.mesh).hash(&mut hash);
+            if let Some(text) = item.mesh.text() {
+                text.text.hash(&mut hash);
+                text.monospace.hash(&mut hash);
+                std::mem::discriminant(&text.alignment).hash(&mut hash);
+                text.max_width.map(f32::to_bits).hash(&mut hash);
+                floats([text.font_size, text.opacity], &mut hash);
+            }
+            item.material.texture.hash(&mut hash);
+            item.material.lit.hash(&mut hash);
+            floats(
+                item.model
+                    .to_cols_array()
+                    .into_iter()
+                    .chain(item.material.tint)
+                    .chain(item.material.uv_scale)
+                    .chain(item.material.metallic)
+                    .chain(item.material.roughness),
+                &mut hash,
+            );
+            for surface in item.material.surface_overrides.iter() {
+                surface.surface.hash(&mut hash);
+                surface.source.hash(&mut hash);
+                surface.texture.hash(&mut hash);
+                floats(
+                    surface
+                        .transform
+                        .to_cols_array()
+                        .into_iter()
+                        .chain(surface.tint)
+                        .chain(surface.uv_scale)
+                        .chain(surface.metallic)
+                        .chain(surface.roughness),
+                    &mut hash,
+                );
+            }
+        }
+        for p in &scene.particles {
+            p.id.hash(&mut hash);
+            p.kind.hash(&mut hash);
+            floats(
+                p.position
+                    .to_array()
+                    .into_iter()
+                    .chain(p.velocity.to_array())
+                    .chain(p.color)
+                    .chain([
+                        p.size,
+                        p.rotation,
+                        p.opacity,
+                        p.softness,
+                        p.trail_length,
+                        p.seed,
+                    ]),
+                &mut hash,
+            );
+        }
+        if let Some(gi) = &scene.gi {
+            gi.resolution.hash(&mut hash);
+            floats(
+                gi.min
+                    .into_iter()
+                    .chain(gi.max)
+                    .chain([gi.intensity, gi.normal_bias])
+                    .chain(gi.probes.iter().flatten().copied()),
+                &mut hash,
+            );
+        }
+        hash.finish()
+    }
+    #[test]
+    fn streamed_signature_is_independent_of_write_boundaries() {
+        use std::hash::Hasher;
+        let bytes: Vec<u8> = (0..200u32).map(|i| (i * 37 % 251) as u8).collect();
+        let mut whole = Signature::new();
+        whole.write(&bytes);
+        for split in [1, 7, 31, 32, 33, 64, 199] {
+            let mut parts = Signature::new();
+            parts.write(&bytes[..split]);
+            parts.write(&bytes[split..]);
+            assert_eq!(parts.finish(), whole.finish(), "split {split}");
+        }
+        for length in 0..bytes.len() {
+            let mut shorter = Signature::new();
+            shorter.write(&bytes[..length]);
+            assert_ne!(shorter.finish(), whole.finish(), "length {length}");
+        }
+    }
+    #[test]
+    fn signature_repeats_exactly_when_the_former_signature_repeats() {
+        let mut seed = 0x51f1_5e3d_u64;
+        let mut next = |bound: u64| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (seed >> 33) % bound
+        };
+        let item = |i: u64| DrawItem {
+            motion_id: i,
+            model: Mat4::from_translation(Vec3::new(i as f32, 0., -5.)),
+            mesh: match i % 4 {
+                0 => MeshKind::Cube,
+                1 => MeshKind::Imported(format!("mesh-{i}")),
+                2 => MeshKind::ModelPart("model".into(), i as usize),
+                _ => MeshKind::Text(TextMesh {
+                    text: format!("label {i}"),
+                    ..Default::default()
+                }),
+            },
+            material: Material {
+                metallic: i.is_multiple_of(3).then_some(0.5),
+                roughness: i.is_multiple_of(2).then_some(0.25),
+                surface_overrides: std::sync::Arc::from([SurfaceMaterialOverride {
+                    surface: 0,
+                    source: "0000000000000000".into(),
+                    transform: Mat4::IDENTITY,
+                    texture: None,
+                    uv_scale: [1.; 2],
+                    tint: [1.; 3],
+                    metallic: None,
+                    roughness: Some(0.5),
+                }]),
+                ..draw(0, MeshKind::Cube, Mat4::IDENTITY).object.material
+            },
+        };
+        let particle = |i: u64| Particle {
+            simulation: None,
+            id: i,
+            position: Vec3::splat(i as f32),
+            velocity: Vec3::Y,
+            size: 0.3,
+            rotation: 0.,
+            color: [0.5; 3],
+            opacity: 0.5,
+            kind: ParticleKind::Smoke,
+            softness: 0.2,
+            trail_length: 0.,
+            seed: 0.1,
+        };
+        let light = LocalLight {
+            directional: false,
+            position: [1.; 3],
+            direction: [0., -1., 0.],
+            color: [1.; 3],
+            intensity: 2.,
+            range: 5.,
+            spot_angles: None,
+            shadows: None,
+        };
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            particles: (0..6).map(particle).collect(),
+            fog: Default::default(),
+            gi: Some(IrradianceVolume {
+                min: [0.; 3],
+                max: [1.; 3],
+                resolution: [2; 3],
+                intensity: 1.,
+                normal_bias: 0.,
+                probes: std::sync::Arc::new(vec![[0.5; 4]; 8 * 41]),
+            }),
+            lights: vec![light],
+            environment: Default::default(),
+            display: Default::default(),
+            lighting: Default::default(),
+            view_projection: Mat4::IDENTITY,
+            items: (0..8).map(item).collect(),
+            shader_time: 0.,
+        };
+        let mut probes = None;
+        let mut previous = (
+            reference_signature(&scene),
+            frame_signature(&scene, &mut probes),
+        );
+        let mut repeats = 0;
+        for step in 0..4000 {
+            // Most edits change one value and often restore it; signed zeros
+            // and value swaps between optional factors probe exact semantics.
+            let value: f32 = [0., -0., 1., 0.5][next(4) as usize];
+            match next(16) {
+                0 => scene.display.time_seconds = value.abs(),
+                1 => scene.display.bloom.intensity = value,
+                2 => scene.lighting.sun_color[next(3) as usize] = value.abs(),
+                3 => scene.fog.base_height = value,
+                4 => scene.environment.star_intensity = value.abs(),
+                5 => scene.lights[0].spot_angles = (next(2) == 0).then_some([value, 30.]),
+                6 => scene.view_projection.x_axis.x = 1. + value,
+                7 => scene.items[next(8) as usize].model.w_axis.y = value,
+                8 => {
+                    let material = &mut scene.items[next(8) as usize].material;
+                    (material.metallic, material.roughness) =
+                        (material.roughness, material.metallic);
+                }
+                9 => scene.items[next(8) as usize].material.lit ^= true,
+                10 => {
+                    let i = next(8) as usize;
+                    std::sync::Arc::make_mut(&mut scene.items[i].material.surface_overrides)[0]
+                        .tint[0] = value.abs();
+                }
+                11 => scene.particles[next(6) as usize].seed = value,
+                12 => {
+                    let mut data = (*scene.gi.as_ref().unwrap().probes).clone();
+                    data[next(8 * 41) as usize][0] = value;
+                    // Fresh allocations with equal contents must still repeat.
+                    scene.gi.as_mut().unwrap().probes = std::sync::Arc::new(data);
+                }
+                13 => {
+                    if let MeshKind::Text(text) = &mut scene.items[3].mesh {
+                        text.text = if next(2) == 0 { "a" } else { "b" }.into();
+                    }
+                }
+                _ => {}
+            }
+            let current = (
+                reference_signature(&scene),
+                frame_signature(&scene, &mut probes),
+            );
+            assert_eq!(
+                current.0 == previous.0,
+                current.1 == previous.1,
+                "step {step}"
+            );
+            repeats += usize::from(current.1 == previous.1);
+            previous = current;
+        }
+        assert!(repeats > 1000 && repeats < 3500, "{repeats} repeats");
+    }
     fn draw(motion_id: u64, mesh: MeshKind, model: Mat4) -> PreparedDraw {
         PreparedDraw {
             preparation: Default::default(),
@@ -562,6 +1026,73 @@ mod tests {
             cutoff: 0.,
             transparent: false,
             depth: 0.,
+        }
+    }
+    #[test]
+    #[ignore = "release-mode temporal history CPU profile; run explicitly"]
+    fn temporal_history_benchmark() {
+        let item = |i: usize| DrawItem {
+            motion_id: i as u64 + 1,
+            model: Mat4::from_translation(Vec3::new(i as f32, 0., -5.)),
+            mesh: MeshKind::Imported(format!("mesh-{}", i % 64)),
+            material: draw(0, MeshKind::Cube, Mat4::IDENTITY).object.material,
+        };
+        let particle = |i: usize| Particle {
+            simulation: None,
+            id: i as u64,
+            position: Vec3::splat(i as f32),
+            velocity: Vec3::Y,
+            size: 0.3,
+            rotation: 0.,
+            color: [0.5; 3],
+            opacity: 0.5,
+            kind: ParticleKind::Smoke,
+            softness: 0.2,
+            trail_length: 0.,
+            seed: 0.1,
+        };
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            particles: (0..16_384).map(particle).collect(),
+            fog: Default::default(),
+            gi: Some(IrradianceVolume {
+                min: [0.; 3],
+                max: [1.; 3],
+                resolution: [16; 3],
+                intensity: 1.,
+                normal_bias: 0.,
+                probes: std::sync::Arc::new(vec![[0.5; 4]; 16 * 16 * 16 * 41]),
+            }),
+            lights: Vec::new(),
+            environment: Default::default(),
+            display: Default::default(),
+            lighting: Default::default(),
+            view_projection: Mat4::IDENTITY,
+            items: (0..4096).map(item).collect(),
+            shader_time: 0.,
+        };
+        scene.display.temporal_aa.enabled = true;
+        for (workload, advance) in [("play", true), ("paused", false)] {
+            let mut history = MotionHistory::default();
+            let mut samples = Vec::new();
+            for frame in 0..70 {
+                if advance {
+                    scene.display.time_seconds = frame as f32 / 60.;
+                }
+                let start = std::time::Instant::now();
+                let (_, temporal) = std::hint::black_box(history.begin(&scene, [640, 400], false));
+                samples.push(start.elapsed().as_secs_f64() * 1000.);
+                history.finish(&[]);
+                if frame > 1 {
+                    assert_eq!(temporal.repeated, !advance);
+                }
+            }
+            samples.drain(..10);
+            samples.sort_by(f64::total_cmp);
+            println!(
+                "temporal_history workload={workload} items=4096 particles=16384 gi_probes=4096 begin_median_ms={:.4}",
+                samples[samples.len() / 2]
+            );
         }
     }
     #[test]

@@ -1,0 +1,475 @@
+==> warmup-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.36s
+
+==> warmup-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.30s
+
+==> pair01-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.978 synchronized_median_ms=9.236 encode_median_ms=0.561 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.766 synchronized_median_ms=12.059 encode_median_ms=1.687 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.949 synchronized_median_ms=4.429 encode_median_ms=0.281 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.711 synchronized_median_ms=3.896 encode_median_ms=0.280 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=3.127 synchronized_median_ms=4.648 encode_median_ms=0.304 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.806 synchronized_median_ms=2.131 encode_median_ms=0.274 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.972 synchronized_median_ms=1.238 encode_median_ms=0.083 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 4.64s
+
+==> pair01-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.964 synchronized_median_ms=1.196 encode_median_ms=0.110 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.070 synchronized_median_ms=1.314 encode_median_ms=0.119 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.354 synchronized_median_ms=2.509 encode_median_ms=0.121 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.473 synchronized_median_ms=2.565 encode_median_ms=0.135 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.429 synchronized_median_ms=2.725 encode_median_ms=0.128 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.061 synchronized_median_ms=1.298 encode_median_ms=0.122 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.802 synchronized_median_ms=1.007 encode_median_ms=0.082 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.75s
+
+==> pair01-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=5.848 synchronized_median_ms=5.857
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.27s
+
+==> pair01-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=5.322 synchronized_median_ms=5.364
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.25s
+
+==> pair01-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8052
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8273
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.54s
+
+==> pair01-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4858
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4836
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair02-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.943 synchronized_median_ms=9.326 encode_median_ms=0.564 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.720 synchronized_median_ms=11.925 encode_median_ms=1.655 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.976 synchronized_median_ms=4.334 encode_median_ms=0.273 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.808 synchronized_median_ms=4.053 encode_median_ms=0.284 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=3.070 synchronized_median_ms=4.529 encode_median_ms=0.296 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.847 synchronized_median_ms=2.317 encode_median_ms=0.287 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.933 synchronized_median_ms=1.155 encode_median_ms=0.079 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 4.19s
+
+==> pair02-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.934 synchronized_median_ms=1.162 encode_median_ms=0.101 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.079 synchronized_median_ms=1.325 encode_median_ms=0.120 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.458 synchronized_median_ms=2.626 encode_median_ms=0.133 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.393 synchronized_median_ms=2.491 encode_median_ms=0.131 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.407 synchronized_median_ms=2.585 encode_median_ms=0.126 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.077 synchronized_median_ms=1.321 encode_median_ms=0.121 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.790 synchronized_median_ms=1.009 encode_median_ms=0.077 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.76s
+
+==> pair02-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=5.841 synchronized_median_ms=5.886
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.27s
+
+==> pair02-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=4.901 synchronized_median_ms=4.927
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.25s
+
+==> pair02-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8623
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8927
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.55s
+
+==> pair02-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4864
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4870
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair03-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.830 synchronized_median_ms=8.961 encode_median_ms=0.541 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.357 synchronized_median_ms=11.459 encode_median_ms=1.577 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.611 synchronized_median_ms=3.798 encode_median_ms=0.258 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.779 synchronized_median_ms=3.968 encode_median_ms=0.276 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=2.868 synchronized_median_ms=4.283 encode_median_ms=0.277 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.751 synchronized_median_ms=2.173 encode_median_ms=0.267 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.930 synchronized_median_ms=1.144 encode_median_ms=0.078 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 4.04s
+
+==> pair03-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.951 synchronized_median_ms=1.183 encode_median_ms=0.102 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.078 synchronized_median_ms=1.323 encode_median_ms=0.120 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.394 synchronized_median_ms=2.594 encode_median_ms=0.128 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.372 synchronized_median_ms=2.438 encode_median_ms=0.126 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.395 synchronized_median_ms=2.667 encode_median_ms=0.125 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.069 synchronized_median_ms=1.378 encode_median_ms=0.117 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.821 synchronized_median_ms=1.074 encode_median_ms=0.079 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.75s
+
+==> pair03-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=6.004 synchronized_median_ms=6.013
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.26s
+
+==> pair03-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=4.730 synchronized_median_ms=4.746
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+==> pair03-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8749
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8456
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.55s
+
+==> pair03-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4853
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4851
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair04-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.962 synchronized_median_ms=9.055 encode_median_ms=0.552 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.817 synchronized_median_ms=12.010 encode_median_ms=1.668 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.914 synchronized_median_ms=4.227 encode_median_ms=0.272 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.687 synchronized_median_ms=3.806 encode_median_ms=0.271 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=2.781 synchronized_median_ms=4.058 encode_median_ms=0.277 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.765 synchronized_median_ms=2.073 encode_median_ms=0.268 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.942 synchronized_median_ms=1.213 encode_median_ms=0.078 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 3.89s
+
+==> pair04-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.983 synchronized_median_ms=1.217 encode_median_ms=0.110 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.091 synchronized_median_ms=1.323 encode_median_ms=0.121 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.407 synchronized_median_ms=2.538 encode_median_ms=0.130 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.360 synchronized_median_ms=2.398 encode_median_ms=0.125 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.397 synchronized_median_ms=2.567 encode_median_ms=0.129 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.060 synchronized_median_ms=1.298 encode_median_ms=0.119 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.784 synchronized_median_ms=0.987 encode_median_ms=0.076 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.73s
+
+==> pair04-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=6.036 synchronized_median_ms=6.082
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.27s
+
+==> pair04-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=5.034 synchronized_median_ms=5.048
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+==> pair04-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8131
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8238
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.54s
+
+==> pair04-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4864
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4854
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair05-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.919 synchronized_median_ms=9.073 encode_median_ms=0.565 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.378 synchronized_median_ms=11.300 encode_median_ms=1.587 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.793 synchronized_median_ms=4.006 encode_median_ms=0.265 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.658 synchronized_median_ms=3.832 encode_median_ms=0.271 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=2.722 synchronized_median_ms=4.051 encode_median_ms=0.272 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.734 synchronized_median_ms=1.995 encode_median_ms=0.269 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.932 synchronized_median_ms=1.166 encode_median_ms=0.078 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 3.83s
+
+==> pair05-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.933 synchronized_median_ms=1.158 encode_median_ms=0.101 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.074 synchronized_median_ms=1.310 encode_median_ms=0.119 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.366 synchronized_median_ms=2.496 encode_median_ms=0.126 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.367 synchronized_median_ms=2.462 encode_median_ms=0.126 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.386 synchronized_median_ms=2.550 encode_median_ms=0.127 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.071 synchronized_median_ms=1.324 encode_median_ms=0.122 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.789 synchronized_median_ms=1.000 encode_median_ms=0.085 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.69s
+
+==> pair05-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=6.475 synchronized_median_ms=6.484
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.26s
+
+==> pair05-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=4.657 synchronized_median_ms=4.672
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+==> pair05-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8039
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8180
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.54s
+
+==> pair05-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4845
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4835
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair06-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.925 synchronized_median_ms=9.079 encode_median_ms=0.552 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.383 synchronized_median_ms=11.263 encode_median_ms=1.574 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.922 synchronized_median_ms=4.223 encode_median_ms=0.273 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.840 synchronized_median_ms=4.081 encode_median_ms=0.281 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=2.803 synchronized_median_ms=4.151 encode_median_ms=0.276 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.897 synchronized_median_ms=2.265 encode_median_ms=0.363 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.947 synchronized_median_ms=1.185 encode_median_ms=0.079 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 3.92s
+
+==> pair06-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.950 synchronized_median_ms=1.178 encode_median_ms=0.109 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.091 synchronized_median_ms=1.323 encode_median_ms=0.125 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.359 synchronized_median_ms=2.474 encode_median_ms=0.123 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.337 synchronized_median_ms=2.430 encode_median_ms=0.124 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.385 synchronized_median_ms=2.637 encode_median_ms=0.128 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.066 synchronized_median_ms=1.310 encode_median_ms=0.122 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.788 synchronized_median_ms=1.007 encode_median_ms=0.077 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.69s
+
+==> pair06-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=6.570 synchronized_median_ms=6.579
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.27s
+
+==> pair06-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=4.685 synchronized_median_ms=4.699
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+==> pair06-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8271
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8334
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.54s
+
+==> pair06-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4837
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4837
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s
+
+==> pair07-caches-base.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=6.859 synchronized_median_ms=8.876 encode_median_ms=0.552 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=9.383 synchronized_median_ms=11.273 encode_median_ms=1.600 shadow_maps=80 shadow_draws=12800 object_buffer_allocations=95840 instance_buffer_allocations=0 surface_records_built=102400 plan_rebuilds=0 bundle_compilations=80 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=2.837 synchronized_median_ms=4.154 encode_median_ms=0.268 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=2.782 synchronized_median_ms=4.043 encode_median_ms=0.291 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=2.859 synchronized_median_ms=4.298 encode_median_ms=0.290 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=particles frames=80 cpu_median_ms=1.840 synchronized_median_ms=2.233 encode_median_ms=0.288 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=0 indirect_runs=0 pipeline_binds=80
+renderer_caches workload=sky frames=80 cpu_median_ms=0.940 synchronized_median_ms=1.191 encode_median_ms=0.079 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 3.90s
+
+==> pair07-caches-final.txt <==
+
+running 1 test
+test renderer_cache_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+renderer_caches workload=stream frames=80 cpu_median_ms=0.963 synchronized_median_ms=1.187 encode_median_ms=0.113 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=text_toggle frames=80 cpu_median_ms=1.066 synchronized_median_ms=1.305 encode_median_ms=0.118 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_play frames=80 cpu_median_ms=1.354 synchronized_median_ms=2.492 encode_median_ms=0.121 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_paused frames=80 cpu_median_ms=1.371 synchronized_median_ms=2.407 encode_median_ms=0.133 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=taa_blur frames=80 cpu_median_ms=1.376 synchronized_median_ms=2.537 encode_median_ms=0.122 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=particles frames=80 cpu_median_ms=1.051 synchronized_median_ms=1.286 encode_median_ms=0.116 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+renderer_caches workload=sky frames=80 cpu_median_ms=0.817 synchronized_median_ms=1.025 encode_median_ms=0.076 shadow_maps=0 shadow_draws=0 object_buffer_allocations=0 instance_buffer_allocations=0 surface_records_built=0 plan_rebuilds=0 bundle_compilations=0 bundle_replays=80 indirect_runs=0 pipeline_binds=0 post_bind_groups=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.68s
+
+==> pair07-mipmap-base.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=6.029 synchronized_median_ms=6.038
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.26s
+
+==> pair07-mipmap-final.txt <==
+
+running 1 test
+test mipmap_upload_benchmark ... adapter="NVIDIA GeForce RTX 3060" backend=Vulkan type=DiscreteGpu driver="NVIDIA" driver_info="615.78.08"
+mipmap_upload images=8 size=1024 levels=11 upload_cpu_median_ms=4.692 synchronized_median_ms=4.709
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.24s
+
+==> pair07-temporal-base.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8018
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=3.8221
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.54s
+
+==> pair07-temporal-final.txt <==
+
+running 1 test
+test scene::geometry::tests::temporal_history_benchmark ... temporal_history workload=play items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4842
+temporal_history workload=paused items=4096 particles=16384 gi_probes=4096 begin_median_ms=0.4848
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.07s

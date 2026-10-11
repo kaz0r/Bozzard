@@ -13,7 +13,7 @@ struct Pipelines {
     layout: wgpu::BindGroupLayout,
     uniform: wgpu::Buffer,
     bins: wgpu::Buffer,
-    binding: Option<wgpu::BindGroup>,
+    bindings: gpu_util::Recent<wgpu::TextureView, wgpu::BindGroup>,
 }
 impl Exposure {
     pub fn new(gpu: &Gpu) -> Self {
@@ -43,7 +43,7 @@ impl Exposure {
         source: &wgpu::TextureView,
         display: DisplaySettings,
         raw: bool,
-        source_changed: bool,
+        created: &mut usize,
     ) {
         let settings = display.auto_exposure;
         let active = !raw && settings.enabled && settings.strength > 0.;
@@ -55,7 +55,7 @@ impl Exposure {
             self.active = false;
             self.previous_time = None;
             if let Some(pipelines) = &mut self.pipelines {
-                pipelines.binding = None;
+                pipelines.bindings.clear();
             }
             return;
         }
@@ -67,8 +67,9 @@ impl Exposure {
             .previous_time
             .map_or(0., |previous| (time - previous).clamp(0., 10.));
         let pipelines = self.pipelines.get_or_insert_with(|| Pipelines::new(gpu));
-        if source_changed || pipelines.binding.is_none() {
-            pipelines.binding = Some(gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let state = &self.state;
+        if pipelines.bindings.select(source.clone(), |source| {
+            gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("exposure metering source"),
                 layout: &pipelines.layout,
                 entries: &[
@@ -86,10 +87,12 @@ impl Exposure {
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
-                        resource: self.state.as_entire_binding(),
+                        resource: state.as_entire_binding(),
                     },
                 ],
-            }));
+            })
+        }) {
+            *created += 1;
         }
         gpu.queue.write_buffer(
             &pipelines.uniform,
@@ -122,7 +125,7 @@ impl Exposure {
             label: Some("histogram eye adaptation"),
             timestamp_writes: None,
         });
-        pass.set_bind_group(0, pipelines.binding.as_ref().unwrap(), &[]);
+        pass.set_bind_group(0, pipelines.bindings.current().unwrap(), &[]);
         pass.set_pipeline(&pipelines.histogram);
         pass.dispatch_workgroups(16, 16, 1);
         pass.set_pipeline(&pipelines.adapt);
@@ -205,7 +208,7 @@ impl Pipelines {
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            binding: None,
+            bindings: Default::default(),
         }
     }
 }

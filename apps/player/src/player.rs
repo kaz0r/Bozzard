@@ -309,7 +309,7 @@ impl Player {
                     || matches!(key, Key::Character(value) if value.eq_ignore_ascii_case("r"))) =>
             {
                 let document = load_document(self.options.scene.as_deref())?;
-                let (next, mut assets) = start_session(&document, &self.options)?;
+                let (mut next, mut assets) = start_session(&document, &self.options)?;
                 if let Some(view) = &mut self.view {
                     let mut renderer = view
                         .renderer_settings
@@ -327,6 +327,15 @@ impl Player {
                         self.options.gpu_memory_mib * 1024 * 1024,
                     )?;
                     view.renderer = renderer;
+                }
+                // Player settings belong to the user, not the scene instance.
+                if let Some(store) =
+                    self.demo
+                        .app
+                        .world
+                        .remove_resource::<bozzard_scene::player_settings::SettingsStore>()
+                {
+                    next.app.world.insert_resource(store);
                 }
                 self.assets = assets;
                 self.audio.stop();

@@ -148,6 +148,10 @@ fn definition(bytes: &[u8]) -> Result<MaterialAsset> {
 pub(super) fn snapshot(path: &Path, progress: &job::Progress) -> Result<SourceSnapshot> {
     snapshot_replacing(path, progress, None)
 }
+/// The file `snapshot` reads for `path`, whose `..` components it resolves lexically.
+pub(super) fn snapshot_path(path: &Path) -> PathBuf {
+    normalized(path).unwrap_or_else(|_| path.to_path_buf())
+}
 fn snapshot_replacing(
     path: &Path,
     progress: &job::Progress,
@@ -290,10 +294,13 @@ impl AssetStore {
                     }
                 }
             }
-            if entry.observed.as_deref() != Some(&snapshot) {
+            let observed = snapshot.observed();
+            if entry.observed.as_deref() != Some(&observed) {
                 let data = decode(&source, bytes, &snapshot)?;
                 entry.content_fingerprint = Some(fingerprint_snapshot(&snapshot));
-                entry.observed = Some(Arc::new(snapshot));
+                entry.observed = Some(Arc::new(observed));
+                // Publishing rewrites the file; the next scan reads it again.
+                entry.stamps = None;
                 entry.data = Some(Arc::new(AssetData::Material(Box::new(data))));
                 entry.state = LoadState::Ready;
                 entry.revision += 1;

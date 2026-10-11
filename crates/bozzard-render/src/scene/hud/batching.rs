@@ -565,7 +565,9 @@ mod tests {
             capture(&mut reference, &scene)?.rgba
         );
         scene.items.clear();
-        capture(&mut optimized, &scene)?;
+        for _ in 0..=OVERLAY_IDLE_FRAMES {
+            capture(&mut optimized, &scene)?;
+        }
         assert!(optimized.hud.is_none());
         assert!(optimized.text.is_none());
         println!(

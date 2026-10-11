@@ -725,19 +725,19 @@ impl SceneInstance {
         result
     }
     pub fn sprite_frame(&self, world: &World, layer: Layer) -> Result<Vec<Visual>> {
-        if self.component_entities::<Sprite>(world).is_empty()
-            && self.component_entities::<Tilemap>(world).is_empty()
+        if !self.has_component::<Sprite>(world, |_| true)
+            && !self.has_component::<Tilemap>(world, |_| true)
         {
             return Ok(Vec::new());
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         self.sprite_frame_with_matrices(world, layer, &matrices)
     }
     pub(crate) fn sprite_frame_with_matrices(
         &self,
         world: &World,
         layer: Layer,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
     ) -> Result<Vec<Visual>> {
         self.sprite_frame_with_lookup(world, layer, |owner| matrices[owner])
     }

@@ -410,7 +410,7 @@ impl SceneInstance {
         &self,
         world: &World,
         snapshot: &CollisionSnapshot,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
     ) -> BTreeMap<String, Vec<Contact>> {
         let mut result = world
             .resource::<crate::physics::Physics>()

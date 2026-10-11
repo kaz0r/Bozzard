@@ -3,6 +3,7 @@ use crate::Gpu;
 /// GPU downsampling avoids retaining a second decoded image pyramid on the CPU.
 pub(crate) struct Mipmaps {
     pipeline: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
 }
 
@@ -57,76 +58,88 @@ impl Mipmaps {
             mag_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self { pipeline, sampler }
-    }
-
-    pub(crate) fn generate(&self, gpu: &Gpu, texture: &wgpu::Texture) {
-        for level in 1..texture.mip_level_count() {
-            self.generate_rows(gpu, texture, level, 0, (texture.height() >> level).max(1));
+        Self {
+            layout: pipeline.get_bind_group_layout(0),
+            pipeline,
+            sampler,
         }
     }
 
-    pub(crate) fn generate_rows(
+    pub(crate) fn encoder(gpu: &Gpu) -> wgpu::CommandEncoder {
+        gpu.device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("generate model mipmaps"),
+            })
+    }
+
+    /// Record the whole chain and submit it once.
+    pub(crate) fn generate(&self, gpu: &Gpu, texture: &wgpu::Texture) {
+        if texture.mip_level_count() < 2 {
+            return;
+        }
+        let mut encoder = Self::encoder(gpu);
+        for level in 1..texture.mip_level_count() {
+            let rows = (texture.height() >> level).max(1);
+            self.encode_rows(gpu, &mut encoder, texture, level, 0, rows);
+        }
+        gpu.queue.submit([encoder.finish()]);
+    }
+
+    /// Record one row band of `level`. Earlier levels must already be written
+    /// by queue writes before the submission or by passes earlier in `encoder`.
+    pub(crate) fn encode_rows(
         &self,
         gpu: &Gpu,
+        encoder: &mut wgpu::CommandEncoder,
         texture: &wgpu::Texture,
         level: u32,
         row: u32,
         rows: u32,
     ) {
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("generate model mipmaps"),
-            });
-        let layout = self.pipeline.get_bind_group_layout(0);
-        {
-            let view = |mip| {
-                texture.create_view(&wgpu::TextureViewDescriptor {
-                    base_mip_level: mip,
-                    mip_level_count: Some(1),
-                    ..Default::default()
-                })
-            };
-            let source = view(level - 1);
-            let target = view(level);
-            let binding = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("mipmap source"),
-                layout: &layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&source),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                ],
-            });
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("downsample mip level"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &target,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: if row == 0 {
-                            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
-                        } else {
-                            wgpu::LoadOp::Load
-                        },
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
+        let view = |mip| {
+            texture.create_view(&wgpu::TextureViewDescriptor {
+                base_mip_level: mip,
+                mip_level_count: Some(1),
                 ..Default::default()
-            });
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &binding, &[]);
-            pass.set_scissor_rect(0, row, (texture.width() >> level).max(1), rows);
-            pass.draw(0..3, 0..1);
-        }
-        gpu.queue.submit([encoder.finish()]);
+            })
+        };
+        let source = view(level - 1);
+        let target = view(level);
+        let binding = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("mipmap source"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&source),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+            ],
+        });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("downsample mip level"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: if row == 0 {
+                        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                    } else {
+                        wgpu::LoadOp::Load
+                    },
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &binding, &[]);
+        pass.set_scissor_rect(0, row, (texture.width() >> level).max(1), rows);
+        pass.draw(0..3, 0..1);
     }
 }
 

@@ -91,15 +91,22 @@ impl View {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         options: &Options,
+        player_settings: &bozzard_scene::player_settings::PlayerSettings,
         restored_size: Option<PhysicalSize<u32>>,
     ) -> Result<Self> {
-        let attributes = Window::default_attributes()
-            .with_visible(false)
-            .with_title("Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload");
+        let attributes = settings::window_attributes(
+            Window::default_attributes().with_visible(false).with_title(
+                "Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload",
+            ),
+            player_settings,
+            event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next()),
+        );
         let attributes = if let Some(size) = restored_size {
             attributes.with_inner_size(PhysicalSize::new(size.width.max(1), size.height.max(1)))
         } else {
-            attributes.with_inner_size(LogicalSize::new(1024.0, 640.0))
+            attributes
         };
         let window = Arc::new(event_loop.create_window(attributes)?);
         let accessibility = accessibility::Accessibility::new(event_loop, &window);
@@ -115,7 +122,7 @@ impl View {
         let mut config = surface
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
             .context("surface is unsupported by selected adapter")?;
-        config.present_mode = wgpu::PresentMode::Fifo;
+        config.present_mode = settings::surface_present_mode(&surface, &gpu, player_settings.vsync);
         let renderer_settings = RendererSettings::new(options);
         let renderer = renderer_settings.renderer(&gpu, config.format);
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
@@ -144,6 +151,8 @@ impl View {
             hardware: options.hardware,
             renderer_settings,
             device_recoveries: 0,
+            settings: *player_settings,
+            settings_revision: 0,
         })
     }
 
@@ -210,9 +219,15 @@ impl View {
         if self.gpu.adapter.get_info().backend == wgpu::Backend::Dx12 {
             // DXGI cannot attach a second swapchain to the same HWND while the
             // original window and its presentation resources are still alive.
-            let mut replacement = Self::new(event_loop, options, Some(self.window.inner_size()))
-                .context("recreating DX12 presentation window")?;
+            let mut replacement = Self::new(
+                event_loop,
+                options,
+                &self.settings,
+                Some(self.window.inner_size()),
+            )
+            .context("recreating DX12 presentation window")?;
             replacement.device_recoveries = self.device_recoveries;
+            replacement.settings_revision = self.settings_revision;
             assets
                 .upload(&replacement.gpu, &mut replacement.renderer)
                 .context("restoring graphics assets")?;
@@ -245,7 +260,8 @@ impl View {
                 self.config.height.max(1),
             )
             .context("recreated GPU cannot present to this surface")?;
-        config.present_mode = wgpu::PresentMode::Fifo;
+        config.present_mode =
+            settings::surface_present_mode(&self.surface, &gpu, self.settings.vsync);
         let mut renderer = self.renderer_settings.renderer(&gpu, config.format);
         assets
             .upload(&gpu, &mut renderer)
@@ -316,6 +332,7 @@ impl View {
             layer,
             self.config.width as f32 / self.config.height as f32,
         )?;
+        settings::apply_quality_to_frame(self.settings.quality, &mut scene);
         let scale = self.window.scale_factor() as f32;
         let ui = demo.instance().ui_frame(
             &demo.app.world,

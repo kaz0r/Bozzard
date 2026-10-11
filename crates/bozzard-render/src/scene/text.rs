@@ -412,18 +412,35 @@ impl TextRenderer {
 impl SceneRenderer {
     pub(super) fn prepare_text(&mut self, gpu: &Gpu, scene: &RenderScene) -> Result<()> {
         if scene.items.iter().any(|i| text(&i.mesh).is_some()) {
+            self.text_idle_frames = 0;
             if self.text.get_or_insert_with(TextRenderer::new).prepare(
                 gpu,
                 &scene.items,
                 self.hud_scale,
             )? {
-                // The atlas view was replaced: bindings must not retain its old texture.
-                self.invalidate_object_bindings();
+                self.retire_text_atlas();
             }
-        } else if self.text.take().is_some() {
-            self.invalidate_object_bindings();
+        } else if self.text.is_some() {
+            self.text_idle_frames += 1;
+            if self.text_idle_frames > OVERLAY_IDLE_FRAMES {
+                self.text = None;
+                self.retire_text_atlas();
+            }
         }
         Ok(())
+    }
+    /// The atlas view was replaced or released: bindings must not retain it.
+    /// Glyph bounds do not depend on the atlas, and text never casts shadows,
+    /// so only a lit opaque surface sampling the atlas affects shadow maps.
+    fn retire_text_atlas(&mut self) {
+        let usage = self.surface_preparation.usage(
+            |_| false,
+            |draw| draw.object.material.texture == TextureKind::Text,
+        );
+        self.forget_texture(|texture| *texture == TextureKind::Text);
+        if usage.cast {
+            self.invalidate_shadows();
+        }
     }
 }
 
@@ -551,7 +568,10 @@ mod tests {
             }
         }
         scene.items.clear();
-        assert_eq!(capture(&mut renderer, &scene)?.rgba, empty.rgba);
+        for _ in 0..=OVERLAY_IDLE_FRAMES {
+            assert!(renderer.text.is_some(), "intermittent text keeps its atlas");
+            assert_eq!(capture(&mut renderer, &scene)?.rgba, empty.rgba);
+        }
         assert!(renderer.text.is_none());
         println!("text_gpu_ok pixels depth opacity atlas_growth bounded_edits cleanup");
         Ok(())

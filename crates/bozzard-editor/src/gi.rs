@@ -1,11 +1,30 @@
 use super::*;
 use bozzard_assets::job::Job;
-use bozzard_scene::BakedGi;
+use bozzard_scene::{BakedGi, GiVolumeSettings};
 
 pub(super) struct Freshness {
     revision: u64,
     assets: Vec<(String, Option<u64>)>,
+    /// The document `current` describes, compared by its bake inputs.
+    document: std::sync::Arc<Scene>,
     current: bool,
+}
+/// Whether two valid documents have the same bake fingerprint inputs and baked header:
+/// static geometry and transforms, materials, lights, sun and sky, and the volume.
+fn same_bake_inputs(a: &Scene, b: &Scene) -> bool {
+    fn baked(scene: &Scene) -> Option<(&str, GiVolumeSettings)> {
+        scene
+            .gi
+            .baked
+            .as_ref()
+            .map(|b| (b.source.as_str(), b.volume))
+    }
+    a.gi.volume == b.gi.volume
+        && baked(a) == baked(b)
+        && a.lighting == b.lighting
+        && a.environment == b.environment
+        && a.assets == b.assets
+        && a.objects == b.objects
 }
 
 pub struct PreparedGi {
@@ -26,16 +45,23 @@ impl Editor {
             .map(|e| (e.id.clone(), e.content_fingerprint()))
             .collect();
         let mut cached = self.gi_freshness.borrow_mut();
-        if let Some(previous) = cached.as_ref()
-            && previous.revision == self.revision
+        if let Some(previous) = cached.as_mut()
             && previous.assets == assets
         {
-            return previous.current;
+            // Fog, display, camera, name and other edits outside the bake inputs keep
+            // the result; comparing them is far cheaper than fingerprinting the scene.
+            if previous.revision == self.revision
+                || same_bake_inputs(&previous.document, &self.scene)
+            {
+                previous.revision = self.revision;
+                return previous.current;
+            }
         }
         let current = bozzard_assets::gi::is_current(&self.scene, &self.assets).unwrap_or(false);
         *cached = Some(Freshness {
             revision: self.revision,
             assets,
+            document: self.scene_snapshot(),
             current,
         });
         current
