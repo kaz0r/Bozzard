@@ -869,3 +869,143 @@ fn cached_layout_refreshes_hover_press_and_same_tick_ui_edits() {
     assert!(frame(&world).element("button").is_none());
     assert_eq!(world.change_tick(), tick, "all edits occur within one tick");
 }
+
+#[test]
+fn scripts_read_and_write_slider_and_toggle_values() {
+    use bozzard_scene::{BlueprintRuntime, blueprint::BlackboardValue};
+    let mut scene = base();
+    canvas(&mut scene);
+    let slider = Widget {
+        kind: WidgetKind::Slider,
+        anchors: Anchors {
+            min: [0.; 2],
+            max: [0.; 2],
+            pivot: [0.; 2],
+            offset: [0., 0.],
+            size: [200., 40.],
+        },
+        padding: [0.; 4],
+        value: 1.,
+        min: 0.1,
+        max: 3.,
+        ..Default::default()
+    };
+    widget(&mut scene, "speed", "canvas", slider);
+    widget(
+        &mut scene,
+        "flag",
+        "canvas",
+        Widget {
+            kind: WidgetKind::Toggle,
+            value: 1.,
+            ..Default::default()
+        },
+    );
+    let number = |value: f32| BlackboardValue::Scalar(Value::Number(value));
+    scene.assets.insert(
+        "script".into(),
+        bozzard_scene::AssetSource {
+            kind: bozzard_scene::AssetKind::Script,
+            path: "ui.rs".into(),
+        },
+    );
+    scene.objects.push(Object {
+        id: "menu".into(),
+        name: "Menu".into(),
+        blackboard: ["seen", "written", "flag"]
+            .into_iter()
+            .map(|name| (name.to_string(), number(0.)))
+            .collect(),
+        script_manager: Some(bozzard_scene::ScriptManager {
+            scripts: vec![bozzard_scene::ScriptAttachment {
+                enabled: true,
+                script: "script".into(),
+            }],
+        }),
+        ..Default::default()
+    });
+    let mut world = World::default();
+    let mut instance = scene.spawn(&mut world).unwrap();
+    instance
+        .register_script(
+            "script".into(),
+            r#"
+            fn on_update(me, dt) {
+                set_object_variable("seen", get_ui_value("speed"));
+                if input_pressed("R") {
+                    set_ui_value("speed", 2.5);
+                    set_ui_value("flag", 0.0);
+                }
+                // A write is visible to later reads in the same tick.
+                set_object_variable("written", get_ui_value("speed"));
+                set_object_variable("flag", get_ui_value("flag"));
+            }
+            "#
+            .into(),
+        )
+        .unwrap();
+    let board = |world: &World, name: &str| {
+        world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .object_blackboard("menu")
+            .unwrap()[name]
+            .clone()
+    };
+    let step = |instance: &mut bozzard_scene::SceneInstance, world: &mut World, keys: u128| {
+        instance
+            .step_scripts(
+                world,
+                1. / 60.,
+                GameplayInput {
+                    keys,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+    };
+    step(&mut instance, &mut world, 0);
+    assert_eq!(board(&world, "seen"), number(1.), "authored value");
+    assert_eq!(board(&world, "flag"), number(1.));
+    // A drag reaches the script on its next tick, through the same runtime state.
+    instance
+        .ui_input(
+            &mut world,
+            Layer::TwoD,
+            [800., 600.],
+            Input::SetValue {
+                owner: "speed".into(),
+                value: 2.,
+            },
+        )
+        .unwrap();
+    step(&mut instance, &mut world, 0);
+    assert_eq!(board(&world, "seen"), number(2.));
+    step(&mut instance, &mut world, bozzard_scene::keys::bit("R"));
+    assert_eq!(board(&world, "seen"), number(2.));
+    assert_eq!(board(&world, "written"), number(2.5));
+    assert_eq!(board(&world, "flag"), number(0.));
+    assert_eq!(
+        world.resource::<Runtime>().unwrap().widgets["speed"].value,
+        Some(2.5)
+    );
+    for call in [
+        r#"set_ui_value("speed", 3.5)"#,
+        r#"set_ui_value("menu", 1.0)"#,
+        r#"get_ui_value("menu")"#,
+    ] {
+        instance
+            .register_script(
+                "script".into(),
+                format!("fn on_update(me, dt) {{ {call}; }}"),
+            )
+            .unwrap();
+        let error = instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap_err();
+        assert!(
+            format!("{error:#}").contains("range") || format!("{error:#}").contains("UI Widget"),
+            "{call}: {error:#}"
+        );
+    }
+}

@@ -354,6 +354,15 @@ impl App {
                             .prefix("Normal bias "),
                     )
                     .on_hover_text("World units. Large values can detach shadows from objects.");
+                    ui.add(
+                        egui::DragValue::new(&mut light.shadow_distance)
+                            .speed(0.5)
+                            .range(0.0..=100000.0)
+                            .prefix("Shadow distance "),
+                    )
+                    .on_hover_text(
+                        "World units around the camera that sun shadows cover. 0 fits every caster; set it when distant objects blur nearby shadows.",
+                    );
                     if ui.small_button("Reset lighting").clicked() {
                         *light = Default::default();
                     }

@@ -20,6 +20,16 @@ Point and spot shadows use per-face or per-light frustum culling and the same al
 
 Object-attached directional lights remain unshadowed; the sun is the supported directional shadow source.
 
+### Sun shadow distance
+
+The sun's single shadow map is fitted around every lit opaque caster in the scene. One distant object, such as a ship a kilometre out to sea or a large ocean plane, therefore spreads the map's texels over the whole scene and blurs the shadows near the camera. Set **Shadow distance** in the scene's lighting settings (`lighting.shadow_distance` in world units) to fit only the square of light space within that distance of the active camera:
+
+```json
+"lighting": { "shadows": true, "shadow_resolution": 2048, "shadow_distance": 45 }
+```
+
+Casters keep their whole depth range, so a tall object outside the square still shades receivers inside it; only their extent across the map is clamped. The square follows the camera and snaps to whole texels, so shadows stay stable while it moves. Surfaces farther away than the distance receive no sun shadow. `0`, the default, fits every caster and is omitted from saved scenes. Scripts change it during Play with `set_shadow_distance(meters)`, and turn sun shadows on or off with `set_sun_shadows(enabled)`.
+
 In the editor, the Hierarchy **+ Light** menu creates a point, spot, or directional light. Selecting any object also exposes the **Light (3D)** component checkbox in the inspector, which adds or removes the component. The inspector edits `enabled`, kind, color, intensity, range, and (for spots) both angles. Light changes are undoable and are disabled while Play is running, consistent with other authored component edits.
 
 Light markers remain clickable in the 3D viewport. Disabled lights are shown as gray markers and still participate in selection. Selecting a light shows its range guide; selecting a spot also shows its inner and outer cones. Both point and spot inspectors expose the shared **Cast shadows** checkbox and bias controls, with capacity hints for the `512px` six-face / `up to 4` point maps and `1024px` / `up to 8` spot layers. Guides are editor overlays and are hidden in 2D and during Play.

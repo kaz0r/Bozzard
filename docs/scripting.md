@@ -178,6 +178,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `is_rigidbody(target)`, `is_grounded(target)` | `bool` |
 | `get_position(target)`, `get_rotation(target)`, `get_scale(target)`, `forward_vector(target)` | `[x, y, z]` |
 | `get_text(target)` | `string` |
+| `get_ui_value(target)` | a UI widget's current value (a dragged slider, a clicked toggle, or its authored value), like the **UI Value** node |
 | `network_active()` | Whether a multiplayer presentation frame is available; false in ordinary solo/editor simulation |
 | `network_object(target)` | Read-only map for a locally bound network object; empty when its slot has no player/state |
 | `network_state()` | Read-only session presentation map; the current reference provides `players`, including each player's `local` flag |
@@ -216,6 +217,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_mesh(target, asset_id)` | replace a drawable's mesh with a registered mesh asset, preserving its entity, transform and tint; clears surface overrides belonging to the old mesh |
 | `set_tile_view(cells, exterior, objects)` | transient 3D cutaway/tint: flat `[x, z, factor, ...]` integer tile coordinates, default exterior factor, and a map of object or prefab-root exceptions; factors are `0..1`, with `0` hiding geometry, text, lights, and shadows |
 | `set_ui_text(target, text)`, `set_ui_visible(target, visible)` | text (up to 4096 UTF-8 bytes) and visibility of a UI widget |
+| `set_ui_value(target, value)` | a slider's or toggle's value, within the widget's min..max; like **Set UI Value**, later reads in the tick see it |
 | `set_ui_enabled(target, enabled)` | enable or disable input for a widget and its descendants (useful during closing animations) |
 | `set_ui_opacity(target, opacity)` | widget and descendant opacity multiplier, `0.0`–`1.0` |
 | `set_ui_size(target, width, height)` | widget anchor size in canvas units, each `0.0`–`10000.0` |
@@ -226,6 +228,8 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_light_intensity(target, intensity)` | light |
 | `set_light_color(target, rgb)` | object light color (linear RGB, each channel 0..1) |
 | `set_sun_light(rgb, intensity)`, `set_ambient_light(rgb, intensity)` | scene light color (linear RGB 0..1) and intensity (0..100000); preserves sun direction/shadow settings |
+| `set_sun_direction([x, y, z])` | world-space direction toward the sun (finite, nonzero; normalized when rendered), for day/night cycles; preserves color, intensity and shadows |
+| `set_sun_shadows(enabled)`, `set_shadow_distance(meters)` | sun shadows on/off, and the [shadow distance](lighting.md#sun-shadow-distance) around the camera (0..100000; 0 fits every caster) |
 | `set_environment(zenith, horizon, ground, intensity)` | live sky/IBL colors (linear RGB 0..1), intensity 0..1000; preserves background visibility and stars |
 | `set_fog(color, density)` | live analytic distance fog: color (linear RGB 0..1) and distance density 0..1000; density 0 disables it. Height fog and the start distance stay as authored; volumetric fog is separate (`set_fog_density`) |
 | `set_star_intensity(intensity)` | background-only stars (0..1000, default 0); perspective direction field / fixed distant field for orthographic cameras |
@@ -236,6 +240,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `end_game(message)` | requires Game Flow in scene settings |
 | `quit_game()` | requests Exit: closes the native player or stops editor Play; also available to script scenes without Game Flow |
 | `set_camera_size(target, size)` | sets an orthographic camera's vertical world span; positive finite size, smaller values zoom in |
+| `set_camera_fov(target, degrees)` | sets a perspective camera's vertical field of view, 1..179 degrees |
 | `load_scene(name)`, `add_scene(name)`, `restart_scene()`, `save_game(slot)`, `load_game(slot)` | runtime scene control |
 | `set_window_mode_setting`, `set_window_size_setting`, `set_vsync_setting`, `set_quality_setting`, `set_volume_setting`, `apply_settings()`, `save_settings()`, `reset_settings()` | edit, apply, save or reset [player settings](player-settings.md); `player_settings()` and `get_*_setting` read them, including this tick's earlier edits |
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
@@ -246,7 +251,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_object_list(target, name, values)` | replace a declared list on another local object, with the same type/capacity checks and immediate read-after-write behavior |
 | `print(value)` | one informational line in the engine log (**Debug → Console** in the editor; stdout in the native player and headless server) and the runtime's message list |
 
-Sun, ambient, environment, fog, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
+Sun, ambient, sun direction and shadow, environment, fog, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
 
 Tile views are local to the scene instance and reset on restart/Stop. They leave
 simulation entities, authored material colors, and the 2D HUD intact. Tiles use

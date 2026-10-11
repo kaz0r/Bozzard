@@ -161,6 +161,8 @@ struct ObjectView {
     rotation: [f32; 3],
     scale: [f32; 3],
     text: Option<String>,
+    /// A UI widget's current value with its `[min, max]` range.
+    ui_value: Option<(f32, [f32; 2])>,
     rigidbody: bool,
     grounded: bool,
     animation: Option<animation_api::View>,
@@ -228,6 +230,10 @@ enum Command {
         color: [f32; 3],
         intensity: f32,
     },
+    /// Direction toward the sun; checked nonzero and finite, normalized at rendering.
+    SunDirection([f32; 3]),
+    SunShadows(bool),
+    ShadowDistance(f32),
     Environment {
         zenith: [f32; 3],
         horizon: [f32; 3],
@@ -270,6 +276,10 @@ enum Command {
     CameraSize {
         target: String,
         size: f32,
+    },
+    CameraFov {
+        target: String,
+        degrees: f32,
     },
     SceneControl {
         kind: blueprint::NodeKind,
@@ -493,6 +503,23 @@ impl Host {
         if let Some(view) = self.objects.get_mut(&id) {
             view.text = Some(text);
         }
+    }
+    /// Check a widget value against its range and let later reads in this tick see it.
+    fn mirror_ui_value(&mut self, target: &str, value: f32) -> Result<(), Box<EvalAltResult>> {
+        let id = self.object_id(target).to_owned();
+        let view = self
+            .objects
+            .get_mut(&id)
+            .ok_or_else(|| fail(format!("unknown object '{target}'")))?;
+        let (current, [min, max]) = view
+            .ui_value
+            .as_mut()
+            .ok_or_else(|| fail(format!("'{target}' has no UI Widget")))?;
+        ensure_script(value.is_finite() && (*min..=*max).contains(&value), || {
+            format!("UI value {value} is outside '{target}' range {min}..{max}")
+        })?;
+        *current = value;
+        Ok(())
     }
 }
 

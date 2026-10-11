@@ -9,6 +9,9 @@ pub struct Lighting {
     /// World-space depth and normal offsets for shadow acne control.
     pub shadow_bias: f32,
     pub shadow_normal_bias: f32,
+    /// Sun shadows cover casters within this many world units of the camera, so a few
+    /// distant objects cannot stretch the map over the whole scene. Zero fits every caster.
+    pub shadow_distance: f32,
     pub sun_direction: [f32; 3],
     pub sun_color: [f32; 3],
     pub sun_intensity: f32,
@@ -22,6 +25,7 @@ impl Default for Lighting {
             shadow_resolution: 2048,
             shadow_bias: 0.005,
             shadow_normal_bias: 0.01,
+            shadow_distance: 0.,
             sun_direction: [0.4, 0.8, 0.6],
             sun_color: [1.; 3],
             sun_intensity: 3.,
@@ -42,6 +46,10 @@ impl Lighting {
                 .iter()
                 .all(|x| x.is_finite() && (0.0..=1.0).contains(x)),
             "shadow bias must be finite and in 0..1 world units"
+        );
+        ensure!(
+            self.shadow_distance.is_finite() && (0.0..=100_000.0).contains(&self.shadow_distance),
+            "shadow distance must be finite and in 0..100000 world units"
         );
         let d = Vec3::from(self.sun_direction);
         ensure!(
