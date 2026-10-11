@@ -550,6 +550,7 @@ pub fn component_icon(name: &str) -> &'static str {
         "shader_graph" => icons::HUB,
         "collider" => icons::SELECT_ALL,
         "mesh_collider" => icons::SHAPES,
+        "shape_collider" => icons::CIRCLE,
         "gravity" => icons::WEIGHT,
         "player_controller" => icons::PERSON,
         "trigger" => icons::SENSORS,
