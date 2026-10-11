@@ -199,6 +199,11 @@ impl App {
                     .app
                     .world
                     .get::<bozzard_scene::MeshCollider>(entity)
+                    .is_some_and(|c| c.enabled)
+                || play
+                    .app
+                    .world
+                    .get::<bozzard_scene::ShapeCollider>(entity)
                     .is_some_and(|c| c.enabled))
         {
             ui.weak(if state.grounded {
@@ -461,6 +466,9 @@ fn component_section(
             }
             Some("gravity") => {
                 "Remove Rigidbody and dependent Player Controller (Undo restores them)"
+            }
+            Some("shape_collider") => {
+                "Remove collider and dependent Rigidbody (Undo restores them)"
             }
             Some("camera") => "Remove camera (reassign a player follow-camera first)",
             _ => "Remove component (Undo restores it)",

@@ -162,6 +162,7 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
             ensure!(
                 object.collider.is_none()
                     && object.mesh_collider.is_none()
+                    && object.shape_collider.is_none()
                     && object.gravity.is_none()
                     && object.player_controller.is_none(),
                 "trigger '{}' must not also be a solid collider, gravity body or player",
@@ -246,6 +247,7 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
                 && camera.gravity.is_none()
                 && camera.collider.is_none()
                 && camera.mesh_collider.is_none()
+                && camera.shape_collider.is_none()
                 && camera.trigger.is_none()
                 && matches!(camera.camera, Some(Camera::Perspective { .. })),
             "follow camera needs a separate root perspective camera without Spin/Gravity/collider/trigger"
@@ -262,7 +264,8 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
                 ensure!(
                     id != player.id
                         || !(object.collider.is_some_and(|c| c.enabled)
-                            || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)),
+                            || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+                            || object.shape_collider.is_some_and(|c| c.enabled)),
                     "Player Controller cannot carry child colliders"
                 );
                 parent = scene
@@ -328,6 +331,11 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
                         layers: c.layers,
                         mask: c.mask,
                     })
+                })
+                .or_else(|| {
+                    o.shape_collider
+                        .filter(|c| c.enabled)
+                        .map(|c| c.collision_mesh(&o.id, entity, matrices[o.id.as_str()]))
                 })
         })
         .collect::<Result<_>>()?;
@@ -585,9 +593,11 @@ impl SceneInstance {
             if id == player {
                 continue;
             }
-            if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
+            let mesh = if let Some(collider) =
+                world.get::<MeshCollider>(entity).filter(|c| c.enabled)
+            {
                 collider.geometry(matrices[id])?;
-                let mesh = CollisionMesh {
+                Some(CollisionMesh {
                     id: id.clone(),
                     entity,
                     mesh: if world.get::<Gravity>(entity).is_some_and(|g| g.enabled) {
@@ -599,7 +609,14 @@ impl SceneInstance {
                     solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
                     layers: collider.layers,
                     mask: collider.mask,
-                };
+                })
+            } else if let Some(collider) = world.get::<ShapeCollider>(entity).filter(|c| c.enabled)
+            {
+                Some(collider.collision_mesh(id, entity, matrices[id])?)
+            } else {
+                None
+            };
+            if let Some(mesh) = mesh {
                 // Conservative cube around the camera sphere also protects triangle edges/corners.
                 let (center, edges, corners) = BoxCollider {
                     size: [radius * 2.; 3],

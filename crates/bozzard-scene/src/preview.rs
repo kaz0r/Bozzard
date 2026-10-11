@@ -29,6 +29,7 @@ impl Object {
             lod,
             collider,
             mesh_collider,
+            shape_collider,
             trigger,
             spin,
             extras: _,
@@ -49,6 +50,7 @@ impl Object {
             *lod = None;
             *collider = None;
             *mesh_collider = None;
+            *shape_collider = None;
             *trigger = None;
             *spin = None;
         }

@@ -1,14 +1,17 @@
-//! Box overlap queries and swept single-box translation against static colliders.
+//! Box overlap queries and swept single-box translation against static colliders. Mesh and
+//! shape colliders enter as triangle surfaces.
 use super::*;
 use glam::DVec3;
 mod broad_phase;
 mod mesh;
 mod queries;
 mod response;
+mod shape;
 pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
 pub use queries::{Contact, QueryHit};
 pub(crate) use response::MoveCache;
 pub use response::MoveResult;
+pub use shape::{COLLIDER_AXES, COLLIDER_SHAPES, ColliderAxis, ColliderShape, ShapeCollider};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -149,6 +152,7 @@ impl SceneInstance {
     pub(crate) fn has_collision_geometry(&self, world: &World) -> bool {
         self.has_component::<BoxCollider>(world, |_| true)
             || self.has_component::<MeshCollider>(world, |_| true)
+            || self.has_component::<ShapeCollider>(world, |_| true)
             || self.has_component::<crate::middleware::sprite::Tilemap>(world, |m| {
                 m.enabled && !m.solid.is_empty()
             })
@@ -167,7 +171,7 @@ impl SceneInstance {
         Ok((snapshot, matrices))
     }
     /// One object's enabled colliders at a world matrix: tilemap rectangles, then its
-    /// mesh or box, in the order a full geometry snapshot lists them.
+    /// mesh, shape or box, in the order a full geometry snapshot lists them.
     pub(crate) fn object_colliders(
         &self,
         world: &World,
@@ -212,6 +216,19 @@ impl SceneInstance {
                 layers: collider.layers,
                 mask: collider.mask,
             });
+        }
+        if let Some(collider) = world.get::<ShapeCollider>(entity) {
+            ensure!(
+                world.get::<BoxCollider>(entity).is_none()
+                    && world.get::<MeshCollider>(entity).is_none(),
+                "Shape Collider cannot also be a Box or Mesh Collider"
+            );
+            collider.validate()?;
+            if collider.enabled {
+                snapshot
+                    .meshes
+                    .push(collider.collision_mesh(id, entity, matrix)?);
+            }
         }
         if let Some(collider) = world.get::<BoxCollider>(entity) {
             collider.validate()?;

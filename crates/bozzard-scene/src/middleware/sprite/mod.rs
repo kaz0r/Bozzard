@@ -403,6 +403,7 @@ impl Authored for Tilemap {
             self.solid.is_empty()
                 || owner.collider.is_none()
                     && owner.mesh_collider.is_none()
+                    && owner.shape_collider.is_none()
                     && owner.gravity.is_none()
                     && owner.player_controller.is_none(),
             "solid tilemaps own static collision geometry"
