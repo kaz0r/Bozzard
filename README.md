@@ -118,9 +118,14 @@ The player and exported games apply each user's [player settings](docs/player-se
 
 For scenes without gameplay logic, **1/2** switch views, **Space** pauses animation, arrow keys pan, **R** reloads, and **Escape** closes the window. F5 defaults to `work/saved-scene.json`; `--save-path FILE` changes the destination. A snapshot captures the current runtime scene state, which may include animated transforms.
 
+`--capture FILE.ppm` runs a scene for `--capture-ticks N` fixed ticks (default 60) without opening a window, then renders one frame offscreen, HUD included, at `--capture-size WIDTHxHEIGHT` (default 1280x720).
+
 ```sh
 # Write the embedded scene without opening a window.
 cargo run -p bozzard-player -- --write-scene work/my-scene.json
+
+# Screenshot a scene after two seconds of play, without a window.
+cargo run --release -p bozzard-player -- --scene examples/pagoda-garden/scenes/pagoda.json --capture work/pagoda.ppm --capture-ticks 120
 
 # Run a finite simulation and save its resulting scene.
 cargo run -p bozzard-server -- --scene work/my-scene.json --ticks 120 --save-scene work/simulated.json

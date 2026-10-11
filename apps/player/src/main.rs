@@ -2,6 +2,7 @@ mod accessibility;
 use anyhow::{Context, Result, bail, ensure};
 use std::path::Path;
 mod assets;
+mod capture;
 mod cli;
 #[cfg(test)]
 mod controls_tests;
@@ -67,6 +68,10 @@ struct Options {
     render_interpolation: bool,
     /// Player settings file; replaces the per-user location and loads even in verification runs.
     settings: Option<PathBuf>,
+    /// Write one offscreen frame here after `capture_ticks` simulation ticks, without a window.
+    capture: Option<PathBuf>,
+    capture_ticks: u32,
+    capture_size: [u32; 2],
 }
 
 struct View {
@@ -226,6 +231,9 @@ fn main() -> Result<()> {
         }
         println!("scene_saved path={}", path.display());
         return Ok(());
+    }
+    if let Some(path) = &options.capture {
+        return capture::run(&document, &options, path);
     }
     #[cfg(feature = "steam")]
     bozzard_runtime::steam_runtime::initialize_player(&document)?;
