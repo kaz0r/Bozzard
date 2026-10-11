@@ -161,6 +161,8 @@ fn studio_scene(id: String, mesh: &MeshData) -> bozzard_render::RenderScene {
         skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
+        trails: Vec::new(),
+        decals: Vec::new(),
         view_projection: lens * glam::camera::rh::view::look_at_mat4(eye, center, Vec3::Y),
         items: vec![bozzard_render::DrawItem {
             motion_id: 0,

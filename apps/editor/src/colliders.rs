@@ -89,6 +89,7 @@ impl App {
             glam::Vec3::new(0.0, -0.5, 0.0),
             egui::Stroke::new(2.0, DECAL_GUIDE),
         );
+    }
     /// The sphere, capsule and cylinder colliders behind a snapshot's meshes, by object ID.
     fn shape_colliders<'a>(
         &self,
