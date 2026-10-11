@@ -664,6 +664,8 @@ impl PendingUpload {
         let started = Instant::now();
         let before = self.done;
         let data = self.source.data();
+        // One submission per slice; queue writes precede its mipmap passes.
+        let mut mipmaps = None;
         while self.done - before < budget
             && (self.done == before || started.elapsed() < Duration::from_millis(4))
         {
@@ -814,7 +816,14 @@ impl PendingUpload {
                     } else {
                         &renderer.linear_mipmaps
                     };
-                    generator.generate_rows(gpu, &write.texture, write.level, write.row, rows);
+                    generator.encode_rows(
+                        gpu,
+                        mipmaps.get_or_insert_with(|| crate::mipmap::Mipmaps::encoder(gpu)),
+                        &write.texture,
+                        write.level,
+                        write.row,
+                        rows,
+                    );
                 }
                 write.row += rows;
                 self.done += (width * rows * 4) as usize;
@@ -831,7 +840,9 @@ impl PendingUpload {
         }
         // Initial loads may show a progress panel instead of rendering a scene.
         // Flush writes anyway so queue staging memory cannot accumulate across frames.
-        if self.done != before {
+        if let Some(encoder) = mipmaps {
+            gpu.queue.submit([encoder.finish()]);
+        } else if self.done != before {
             gpu.queue.submit([]);
         }
         let elapsed_ms = started.elapsed().as_secs_f64() * 1000.;

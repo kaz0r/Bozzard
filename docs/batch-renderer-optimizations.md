@@ -11,11 +11,15 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Profile local lighting separately.** Point and spot lights whose range cannot reach a surface are rejected before fragment shading. Conservative masks fit in the existing 256-byte record. A repeatable 400-build factory fixture compares full light loops with the masks, including GPU timestamps and reference captures.
 - [x] **Batch shadow casters independently.** Group depth casters independently of camera visibility and color ordering, including offscreen objects. Draw consecutive visible instance ranges within each light's frustum, avoid unused individual uniform uploads, and compare exact pixels, triangle counts, and dense-factory CPU/GPU measurements against the former fallback.
 - [x] **Avoid unnecessary frustum corner transforms.** Accept a surface as soon as its first corner rules out every rejection plane. Retain the efficient plane-major fallback and the exact homogeneous distances and relative tolerance; compare the original predicate, CPU workloads, and factory captures.
-- [x] **Cache shadow preparation where safe.** Unchanged opaque state skips local-caster scans after receiver-only edits. Identical fitted sun uniforms can reuse the complete map; moving casters render over a copied static depth layer when enough static groups justify it. Exact metadata, asset publication, fitted projection, target, and failure guards protect reuse.
+- [x] **Cache shadow preparation where safe.** Unchanged opaque state skips local-caster scans after receiver-only edits. Identical fitted sun uniforms can reuse the complete map; moving casters render over a copied static depth layer when enough static groups justify it. Exact metadata, asset retirement, fitted projection, target, and failure guards protect reuse.
 - [x] **Reuse fitted sun bounds.** Retain per-surface light-space extrema and transform only changed model/local-bound inputs. Compare exact fitted matrix/range/texel bytes with the original loop, and report direct fitting-stage and factory timings.
 - [x] **Reduce repeated shadow metadata allocation and classification.** Compare successful-frame metadata directly with current draws, share opaque/full field comparisons when they refer to the same row, and supply the static membership mask in that pass. Refresh retained storage only after submission, copying changed keys and preserving failure invalidation. Profile against full snapshot rebuilding with direct CPU timing and exact factory captures.
 
 - [x] **Diagnose singleton draws and batch opaque shader graphs.** Report mutually exclusive singleton reasons and batch-size histograms before occlusion. Matching mesh/texture/host/lighting/graph-hash keys share the existing 64-instance path; lazy opaque graph variants retire with the bounded graph cache. Transparent and deformed surfaces remain individual. See [shader-graph batching](shader-graph-batching.md) for exact motion parity and repeated paired factory measurements.
+- [x] **Keep renderer caches across asset and text changes.** Retire only the cached state that the last successful frame could have used for a replaced or evicted asset, and keep the text and HUD renderers through short gaps. The same pass records mip chains in one command buffer, reuses TAA ping-pong bind groups, streams the temporal frame signature, keeps opaque bundles while particles are live, and resolves meshes once per surface. See [renderer caches](#renderer-caches-across-asset-and-text-changes).
+- [ ] **Draw the sky after opaque geometry.** Measured and deferred; see [deferred follow-ups](#deferred-follow-ups).
+- [ ] **Trim small per-frame overheads.** Item and override validation, light and GI uniform uploads, and HUD text keys were measured and deferred.
+- [ ] **Resolve surface meshes across frames.** Deferred: every geometry retirement would have to reach the cache.
 
 ## Baseline and verification
 
@@ -201,7 +205,7 @@ Inside checks are about 4.4 times faster; outside checks retain similar throughp
 
 October 1, 2026: moving wind streaks in the factory are opaque lit cubes. They still need current depth, so freezing the complete map would leave incorrect shadows. The renderer now retains a separate depth map for unchanged opaque geometry, copies that depth into the sampled sun map, then renders the changed casters. The fullscreen copy writes exact texel depth through `textureLoad`; it is inside a timestamped render pass and contributes one draw and one triangle to the shadow counters. Color rendering, sun fitting, resolution, bias, and shadow sampling remain unchanged.
 
-Reuse requires exactly matching fitted sun uniform bytes and an unchanged target. Static membership compares model, mesh, texture, UV scale, opacity, alpha cutoff, lit eligibility, and deformation state against the successful preceding frame. Deformed meshes stay dynamic. Static depth also validates its own retained membership and caster metadata; starting or stopping movement rebuilds it when necessary. Asset publication clears the cache even if IDs are reused. Resizing/disabling the sun target or disabling the diagnostic cache releases it. Cache stamps publish only after successful submission; failed frames cannot publish partially updated state.
+Reuse requires exactly matching fitted sun uniform bytes and an unchanged target. Static membership compares model, mesh, texture, UV scale, opacity, alpha cutoff, lit eligibility, and deformation state against the successful preceding frame. Deformed meshes stay dynamic. Static depth also validates its own retained membership and caster metadata; starting or stopping movement rebuilds it when necessary. Replacing or evicting an asset clears the cache when the last successful frame used it as a shadow input, even if the ID is reused. A new ID, or an asset that frame did not use, leaves it intact (see [renderer caches](#renderer-caches-across-asset-and-text-changes)). Resizing/disabling the sun target or disabling the diagnostic cache releases it. Cache stamps publish only after successful submission; failed frames cannot publish partially updated state.
 
 The copy path requires at least 64 static surfaces, at least 32 groups containing static surfaces, more static than dynamic surfaces, and at least one dynamic caster. Smaller scenes keep the full depth pass. The cache retains one extra `Depth32Float` texture: **16 MiB at 2048²**, or 64 MiB at 4096², plus metadata proportional to its static surfaces. Only the 2048² factory configuration is timed below; the group threshold is a heuristic, and other scene/resolution/device combinations need measurement. A rebuild adds another depth pass before the copy; steady-state timings do not describe that rebuild cost.
 
@@ -239,11 +243,11 @@ cargo test --offline -p bozzard-render --test instancing \
 
 ### Retained sun-fit bounds
 
-The directional fitter reuses the mesh bounds already collected by the renderer and retains each lit surface's light-space extrema. Model and local-bound keys compare floating-point **bits**, including signed zero; a changed sun-view matrix invalidates every retained extent. Lit eligibility clears an excluded slot, and asset publication clears the cache. Reordering, insertion, and deformation are safe because reuse depends on the actual current local bounds and model at each slot, rather than an asset ID. Resolution changes still recompute the fitted projection using retained extrema.
+The directional fitter reuses the mesh bounds already collected by the renderer and retains each lit surface's light-space extrema. Model and local-bound keys compare floating-point **bits**, including signed zero; a changed sun-view matrix invalidates every retained extent. Lit eligibility clears an excluded slot. Retiring an asset that the last frame used as a shadow input clears the cache. Reordering, insertion, and deformation are safe because reuse depends on the actual current local bounds and model at each slot, rather than an asset ID. Resolution changes still recompute the fitted projection using retained extrema.
 
 Changed surfaces retain the original eight-corner loop and its two separate transforms (`model`, then sun view). Combining those transforms first would change rounding. Global extrema reduce in original surface order; projection, texel snapping, range and bias calculations keep their original expressions. Any non-finite transformed corner falls back to the original complete reduction, preserving its NaN/infinity behavior. These are pure CPU values, so a failed frame cannot publish incorrect GPU state through this cache. The earlier depth-map submission guards remain in effect.
 
-The allocation retains one scalar entry per current surface, with no per-entry heap allocation. It requests shrinking after large count reductions; the measured factory allocation is **335,356 bytes (about 328 KiB)**. Disabling `set_sun_fit_caching_enabled` or publishing assets releases it. `FrameStats` reports fitting CPU time, reused/recomputed counts, fallback, and allocated bytes. The diagnostic restores the original whole-scene corner loop, including its original mesh lookup path; both modes retain the static sun depth cache from the preceding pass.
+The allocation retains one scalar entry per current surface, with no per-entry heap allocation. It requests shrinking after large count reductions; the measured factory allocation is **335,356 bytes (about 328 KiB)**. Disabling `set_sun_fit_caching_enabled` releases it, as does retiring an asset that the last frame used as a shadow input. `FrameStats` reports fitting CPU time, reused/recomputed counts, fallback, and allocated bytes. The diagnostic restores the original whole-scene corner loop, including its original mesh lookup path; both modes retain the static sun depth cache from the preceding pass.
 
 A deterministic test compares exact fitted matrix, range, and texel-size bits through **5,000 edit sequences** over 64 surfaces, including translation, rotation, mirrored/nonuniform scale, local-bound edits, lit changes, reorder, vertical/opposite/nearly vertical sun views, and changing resolution. Separate zero/signed-zero, tiny/large, empty, overflow/fallback and recovery cases pass. Native static-depth captures compare the original fitter with cached fitting while moving eight casters and verify the expected 249 reused and eight recomputed bounds in that fixture. The full native renderer suite passes **60 tests**, with five manual tests skipped, serially. Renderer all-target and factory-target Clippy pass with warnings denied and `--no-deps`; formatting and diff checks pass, and release player/editor executables are rebuilt.
 
@@ -284,7 +288,7 @@ Shadow-state checks now compare the previous successful snapshot directly with c
 
 After successful submission, the existing snapshot retains matching rows and refreshes changed rows. Mesh/texture keys clone only when changed; scalar depth fields update independently. New rows use the original constructor, removed rows drop, and large reductions request shrinking. The feature keeps one retained snapshot rather than building another complete snapshot while the previous one is live. Classification uses two temporary boolean arrays proportional to the draw count, with no additional GPU texture or instance buffer.
 
-The snapshot is still removed before shadow writes. Any later failure drops the unpublished candidate and forces complete revalidation on retry. Asset publication drops the retained snapshot even when IDs match. `set_shadow_metadata_reuse_enabled(false)` restores original construction/comparison/retirement; disabling general state caching also selects that path. `FrameStats` exposes snapshot comparison/classification/construction/retirement CPU time and counts of built, refreshed and retained caster records, plus mesh/texture clone calls. Those calls are work counts, not allocator counts; primitive keys can clone without allocation.
+The snapshot is still removed before shadow writes. Any later failure drops the unpublished candidate and forces complete revalidation on retry. Retiring an asset that the last frame used as a shadow input drops the retained snapshot, even when IDs match. `set_shadow_metadata_reuse_enabled(false)` restores original construction/comparison/retirement; disabling general state caching also selects that path. `FrameStats` exposes snapshot comparison/classification/construction/retirement CPU time and counts of built, refreshed and retained caster records, plus mesh/texture clone calls. Those calls are work counts, not allocator counts; primitive keys can clone without allocation.
 
 A deterministic 5,000-sequence test compares the direct classifier against original snapshot equality, sun equality, opaque equality and static masks, then compares refreshed storage with a freshly constructed snapshot. It covers model motion, transparency, lit changes, UVs, texture/mesh keys, deformation, opacity/cutoff, reorder, insertion/removal, sun/bias/culling edits and local-light activation/order/settings. The native sun/local regressions compare rebuilding against retained storage through geometry/material edits, publications, failure/retry and mode changes; the moving-caster fixture verifies record/clone counts. The full native renderer suite passes **61 tests**, with five manual tests skipped, serially. Renderer all-target and factory-target Clippy pass with warnings denied and `--no-deps`; formatting/diff checks pass, and release player/editor are rebuilt.
 
@@ -320,3 +324,101 @@ cargo test --release --offline -p bozzard-editor --test earth_factory \
 cargo test --offline -p bozzard-render --lib \
   direct_classification_and_retained_metadata_match_original_snapshots -- --nocapture
 ```
+
+### Renderer caches across asset and text changes
+
+October 10, 2026. Before this pass, every publication called a full invalidation,
+even for an ID the renderer had never seen. This covered `remove_asset`, the
+synchronous uploads and `PendingUpload::finish`. The invalidation dropped:
+
+- surface preparation and occlusion;
+- every object and instance binding;
+- the shadow depth plan and metadata snapshot;
+- the static sun depth and fit;
+- every spot and point map.
+
+A streaming world therefore did all of the following whenever an unrelated asset
+arrived or was evicted:
+
+- re-rendered its shadows;
+- reallocated per-surface uniform buffers;
+- re-prepared every item;
+- recompiled its render bundle.
+
+Text appearing, disappearing or growing its atlas did the same.
+
+Retirement now follows what the last successfully submitted frame used:
+
+- **New IDs.** A frame that draws a missing ID fails validation before it caches anything. Publishing a new ID therefore invalidates nothing.
+- **Bind groups.** Replacing or evicting an asset releases only the object, portable and native instance, shadow singleton and native, and compacted shadow range bindings that captured its view. The compacted range caches also compare the view they bound. HUD bindings are rebuilt after any retirement. Render bundles and merged world text compare resource identities themselves.
+- **Surface preparation.** Expansion compares asset IDs, not contents. It is rebuilt when one of the last frame's source items or surfaces referred to the asset. An item that names a model surface the resident model lacks also counts, because a replacement model can add that surface.
+- **Shadow caches.** The depth plan, metadata snapshot, static sun depth, sun fit and local maps are rebuilt when the asset was a *shadow input*: a texture sampled by a lit opaque caster, or geometry on any lit surface. Lit transparent receivers write no depth, but their bounds extend the fitted sun box.
+- **Occlusion.** Retired geometry still resets occlusion snapshots, which key depth by mesh ID.
+- **Unknown history.** If state caching is disabled or the last frame failed, every retirement keeps the former full invalidation.
+- **Text.** Atlas changes rebind only text users. They refresh shadows only if a lit opaque caster sampled the atlas. The text and HUD renderers release their bound views but stay alive for 60 idle frames before being dropped.
+
+The same pass removes other repeated work:
+
+- Mip chains record into one command buffer per texture or staged upload slice,
+  rather than one submission per level (`2fe122f`).
+- TAA, exposure, depth of field, bloom and display passes cache bind groups for both
+  history targets. `FrameStats::post_bind_groups` reports the bind groups they create
+  (`5ad9316`).
+- The temporal frame signature uses a streaming hasher built on xxHash rounds. It
+  hashes settings field by field and caches each GI probe allocation's hash
+  (`a20860a`). A 4,000-edit replay requires the same repeat decisions as the former
+  signature.
+- Live particles no longer disable bundles and multi-draw for the opaque pass.
+  Transparent batches are still drawn between particle buckets (`94d6114`).
+- Each surface resolves its mesh once per frame for culling and occlusion
+  (`bc7237f`).
+
+A review of the first version found three stale-cache cases, fixed in `f6a8cd7` and
+`b1387b9`:
+
+- replaced geometry of a lit transparent receiver;
+- a model surface that was named before it existed;
+- a compacted shadow range still bound to a replaced texture view.
+
+Each fix has a test that fails without it. The `renderer_caches` tests compare
+same-ID replacements, evictions, text growth and these cases against a fresh
+renderer.
+
+[Interleaved release measurements](measurements/renderer-caches.md) used seven pairs
+on an RTX 3060 / Vulkan. The scene was 640×400 with 1,280 surfaces. Every capture
+matches the original renderer byte for byte.
+
+| Workload | Renderer CPU base → branch | Synchronized base → branch | Explaining counters |
+| --- | ---: | ---: | --- |
+| Unrelated image published each frame | 6.925 → 0.951 ms | 9.073 → 1.183 ms | Shadow maps 1 → 0, surface records 1,280 → 0, bundle compilations 1 → 0 per frame |
+| HUD label toggled each frame | 9.383 → 1.078 ms | 11.459 → 1.323 ms | As above |
+| TAA, play | 2.914 → 1.366 ms | 4.223 → 2.509 ms | Opaque bundle replayed instead of direct encoding; post bind groups 8 → 0 |
+| 512 live particles | 1.806 → 1.066 ms | 2.173 → 1.310 ms | Opaque bundle replayed instead of direct encoding |
+| Sky behind a wall, no shadows | 0.940 → 0.790 ms | 1.185 → 1.007 ms | Mesh lookups 3,360 → 1,280 |
+
+The temporal frame signature for 4,096 items, 16,384 particles and 16³ GI falls from
+3.81 to 0.485 ms. A synchronous upload of eight mipmapped 1024² images falls from
+6.03 to 4.73 ms. The commits overlap in several workloads and were not timed
+separately.
+
+#### Deferred follow-ups
+
+- **Sky after opaque geometry.** Drawing the sky last with `LessEqual` at depth 1
+  would shade only uncovered pixels. Colour pipelines use `Less` against a 1.0 clear,
+  with no reversed Z or MSAA, so the depth test is compatible.
+  - Temporary GPU timestamps on the RTX 3060 put the sky pass at about 2 µs at
+    640×400 and 0.04–0.08 ms at 1080p. The 4K result was inconclusive on a busy GPU.
+  - Without particles, transparent surfaces share the opaque render bundle. That
+    bundle would have to split around the sky.
+  - Deferred until a measured view is limited by sky shading.
+- **Small per-frame overheads.** Temporary timers in `renderer_caches` measured each
+  of these at under 1–2% of a roughly 1 ms frame:
+  - item and override validation: about 6–9 µs per frame for 1,280 items without
+    overrides;
+  - light and GI uniform uploads with text preparation: a similar 6–9 µs;
+  - HUD text keys: negligible with a few labels.
+  Scenes with many overrides or HUD labels were not profiled.
+- **Mesh resolution across frames.** Surfaces resolve their meshes once per frame;
+  in `renderer_caches`, string-keyed lookups fell from 3,758 to 1,280 per frame.
+  Caching resolved handles across frames would remove the remaining lookups. Every
+  geometry replacement and eviction would then have to reach that cache.

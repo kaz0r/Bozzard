@@ -1329,4 +1329,52 @@ mod optimization_tests {
         );
         Ok(())
     }
+    #[test]
+    fn compacted_ranges_rebind_a_replaced_view() -> Result<()> {
+        // Compacted entries outlive the frames that drew their casters, so a
+        // texture replaced while no caster used it must not stay bound.
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer.set_native_shadow_lists_enabled(false);
+        renderer.upload_image(&gpu, "mask", 1, 1, &[255; 4])?;
+        let scene = scene(
+            (0..8)
+                .map(|index| DrawItem {
+                    motion_id: index + 1,
+                    model: Mat4::from_translation(Vec3::new(index as f32 * 0.1, 0., -5.)),
+                    mesh: MeshKind::Cube,
+                    material: Material {
+                        texture: TextureKind::Imported("mask".into()),
+                        ..material()
+                    },
+                })
+                .collect(),
+        );
+        capture(&gpu, &mut renderer, &scene)?;
+        let batches = [instancing::Batch {
+            indices: (0..8).collect(),
+            slot: Some(0),
+            first_instance: 0,
+        }];
+        let accepted: Vec<bool> = (0..8).map(|index| index % 2 == 0).collect();
+        let mut cache = compaction::Cache::default();
+        let mut bind = |renderer: &SceneRenderer| {
+            let plan = cache.prepare(renderer, &gpu.device, &gpu.queue, &batches, &accepted);
+            assert_eq!(plan.saved, 3);
+            plan.bindings[&0].clone()
+        };
+        let first = bind(&renderer);
+        assert!(
+            bind(&renderer) == first,
+            "an unchanged view keeps its binding"
+        );
+        renderer.upload_image(&gpu, "mask", 1, 1, &[255, 0, 0, 255])?;
+        assert!(bind(&renderer) != first, "a replaced view is rebound");
+        Ok(())
+    }
 }

@@ -79,6 +79,9 @@ const FRAME_UNIFORM_BYTES: usize = 320;
 const GRAPH_PARAMETER_SLOTS: usize = 16;
 const GRAPH_PARAMETER_RECORD_BYTES: usize = GRAPH_PARAMETER_SLOTS * 16;
 const GRAPH_PARAMETER_BUFFER_BYTES: usize = GRAPH_PARAMETER_RECORD_BYTES * 64;
+/// Frames without text or UI items before fonts, the glyph atlas and UI
+/// pipelines are released; intermittent labels reuse them.
+const OVERLAY_IDLE_FRAMES: u32 = 60;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
@@ -99,6 +102,12 @@ impl MeshKind {
             _ => None,
         }
     }
+    fn asset(&self) -> Option<&str> {
+        match self {
+            Self::Imported(id) | Self::ModelPart(id, _) => Some(id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -113,6 +122,15 @@ pub enum TextureKind {
     Toon,
     Imported(String),
     ModelPart(String, usize),
+}
+
+impl TextureKind {
+    fn asset(&self) -> Option<&str> {
+        match self {
+            Self::Imported(id) | Self::ModelPart(id, _) => Some(id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -342,12 +360,14 @@ pub struct SceneRenderer {
     skinning: skinning::Skinning,
     sprites: sprites::Sprites,
     hud: Option<hud::HudRenderer>,
+    hud_idle_frames: u32,
     output_format: wgpu::TextureFormat,
     hud_scale: f32,
     geometry: Option<geometry::GeometryBuffers>,
     motion_history: geometry::MotionHistory,
     particles: Option<particles::Particles>,
     text: Option<text::TextRenderer>,
+    text_idle_frames: u32,
     world_text: text::WorldCache,
     stats: FrameStats,
     surface_preparation: preparation::SurfacePreparation,
@@ -896,12 +916,14 @@ impl SceneRenderer {
             skinning: skinning::Skinning::default(),
             sprites: Default::default(),
             hud: None,
+            hud_idle_frames: 0,
             output_format,
             hud_scale: 1.,
             geometry: None,
             motion_history: Default::default(),
             particles: None,
             text: None,
+            text_idle_frames: 0,
             world_text: Default::default(),
             stats: Default::default(),
             profiler: Default::default(),
@@ -1206,9 +1228,13 @@ impl SceneRenderer {
         self.objects.clear();
         self.submission.invalidate();
         self.object_identities.clear();
+        self.instancing.bindings.clear();
+        self.invalidate_shadows();
+    }
+
+    fn invalidate_shadows(&mut self) {
         self.shadows.singletons.invalidate();
         self.shadows.native.invalidate();
-        self.instancing.bindings.clear();
         self.instancing.shadow_bindings.clear();
         self.instancing.clear_depth_plan();
         self.shadow_frame = None;
@@ -1216,6 +1242,58 @@ impl SceneRenderer {
         self.shadows.sun_fit.clear();
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
+    }
+
+    /// Release bind groups that captured a retired texture view. Render
+    /// bundles and merged world text compare resource identities themselves.
+    fn forget_texture(&mut self, retired: impl Fn(&TextureKind) -> bool) {
+        for object in self.objects.iter_mut().filter(|o| retired(&o.texture)) {
+            object.resources = None;
+            object.dirty = true;
+            object.parameter_dirty = true;
+        }
+        self.instancing.forget_texture(&retired);
+        self.shadows.singletons.forget_texture(&retired);
+        self.shadows.native.forget_texture(&retired);
+        if let Some(hud) = &mut self.hud {
+            hud.invalidate();
+        }
+    }
+
+    /// Retire cached state for replaced or removed content. Surface expansion
+    /// and shadow metadata compare asset IDs rather than contents, so they are
+    /// rebuilt only when the last submitted frame used the ID: shadows when a
+    /// lit opaque caster used it, or a lit surface used replaced geometry,
+    /// whose bounds also fit the sun box.
+    fn retire_asset(&mut self, id: &str, geometry: bool) {
+        self.forget_texture(|texture| texture.asset() == Some(id));
+        if geometry {
+            // Retained occluder snapshots key depth inputs by mesh ID.
+            self.occlusion.invalidate();
+        }
+        let usage = self.surface_preparation.usage(
+            |item| item.mesh.asset() == Some(id) || item.material.texture.asset() == Some(id),
+            |draw| {
+                draw.object.mesh.asset() == Some(id)
+                    || draw.object.material.texture.asset() == Some(id)
+            },
+        );
+        if usage.drawn {
+            self.surface_preparation.clear();
+        }
+        if usage.cast || geometry && usage.lit {
+            self.invalidate_shadows();
+        }
+    }
+
+    /// Remove GPU entries for `id`: whether any was resident, and whether it
+    /// held geometry.
+    fn release_asset(&mut self, id: &str) -> (bool, bool) {
+        self.model_upload_stats.remove(id);
+        self.transparent_textures.remove(id);
+        let geometry = self.imported_meshes.remove(id).is_some() | self.models.remove(id).is_some();
+        let image = self.imported_textures.remove(id).is_some();
+        (geometry || image, geometry)
     }
 
     /// Update only when resource identities change. Dispatching into an existing texture keeps
@@ -1233,8 +1311,29 @@ impl SceneRenderer {
         if self.generated_textures.keys().eq(next.keys()) {
             return;
         }
+        // Absent handles bind white, so arrivals rebind as well as departures.
+        let handles: BTreeSet<_> = self
+            .generated_textures
+            .keys()
+            .filter(|handle| !next.contains_key(*handle))
+            .chain(
+                next.keys()
+                    .filter(|handle| !self.generated_textures.contains_key(*handle)),
+            )
+            .copied()
+            .collect();
         self.generated_textures = next;
-        self.invalidate_object_bindings();
+        let retired = |texture: &TextureKind| match texture {
+            TextureKind::Generated(handle) => handles.contains(handle),
+            _ => false,
+        };
+        let usage = self
+            .surface_preparation
+            .usage(|_| false, |draw| retired(&draw.object.material.texture));
+        self.forget_texture(retired);
+        if usage.cast {
+            self.invalidate_shadows();
+        }
     }
 
     pub fn clear_imported(&mut self) {
@@ -1248,14 +1347,14 @@ impl SceneRenderer {
     }
 
     /// Retire one catalog entry without invalidating unrelated GPU resources.
+    /// IDs that were never resident cannot be referenced by any cache.
     pub fn remove_asset(&mut self, id: &str) {
+        let skinned = self.skinning.sources.contains_key(id);
         self.skinning.remove(id);
-        self.imported_meshes.remove(id);
-        self.models.remove(id);
-        self.imported_textures.remove(id);
-        self.transparent_textures.remove(id);
-        self.model_upload_stats.remove(id);
-        self.invalidate_object_bindings();
+        let (resident, geometry) = self.release_asset(id);
+        if resident || skinned {
+            self.retire_asset(id, geometry || skinned);
+        }
     }
 
     /// Give an immutable uploaded image another catalog ID without copying GPU
@@ -1295,11 +1394,10 @@ impl SceneRenderer {
                 && indices.iter().all(|i| (*i as usize) < vertices.len()),
             "invalid mesh data"
         );
-        self.models.remove(id);
-        self.model_upload_stats.remove(id);
-        self.imported_textures.remove(id);
-        self.transparent_textures.remove(id);
-        self.invalidate_object_bindings();
+        let (resident, geometry) = self.release_asset(id);
+        if resident {
+            self.retire_asset(id, geometry);
+        }
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
         Ok(())
@@ -1351,18 +1449,15 @@ impl SceneRenderer {
             },
             size,
         );
+        let (resident, geometry) = self.release_asset(id);
+        if resident {
+            self.retire_asset(id, geometry);
+        }
         if rgba.chunks_exact(4).any(|pixel| pixel[3] < 255) {
             self.transparent_textures.insert(id.into());
-        } else {
-            self.transparent_textures.remove(id);
         }
         self.imported_textures
             .insert(id.into(), texture.create_view(&Default::default()));
-        self.imported_meshes.remove(id);
-        self.models.remove(id);
-        self.model_upload_stats.remove(id);
-        // Drop bind groups referring to old texture views; the next draw rebuilds them.
-        self.invalidate_object_bindings();
         Ok(())
     }
 
@@ -1664,10 +1759,11 @@ impl SceneRenderer {
                 },
             });
         }
-        self.imported_meshes.remove(id);
+        let (resident, geometry) = self.release_asset(id);
+        if resident {
+            self.retire_asset(id, geometry);
+        }
         self.models.insert(id.into(), uploaded);
-        self.imported_textures.remove(id);
-        self.transparent_textures.remove(id);
         self.model_upload_stats.insert(
             id.into(),
             ModelUploadStats {
@@ -1694,7 +1790,6 @@ impl SceneRenderer {
                         .sum::<usize>(),
             },
         );
-        self.invalidate_object_bindings();
         Ok(())
     }
     fn prepared_record<'a>(
@@ -2008,6 +2103,7 @@ impl SceneRenderer {
                 shadows: Some(&self.shadows),
             },
         )?;
+        self.stats.post_bind_groups = self.display.bind_groups;
         self.prepare_gi(gpu, scene.gi.as_ref())?;
         scene.lighting.validate()?;
         let lights = local_lights::uniform(&scene.lights)?;
@@ -2115,14 +2211,33 @@ impl SceneRenderer {
         }
         let mut bounds = std::mem::take(&mut self.frame_scratch.bounds);
         bounds.clear();
-        bounds.extend(draws.iter().map(|d| self.mesh_for(&d.object).bounds));
+        let mut counts = std::mem::take(&mut self.frame_scratch.counts);
+        counts.clear();
+        // Resolve each surface's mesh (a string-keyed catalog lookup) once per
+        // frame; occlusion reads the same bounds and index counts by draw.
+        for draw in &draws {
+            let mesh = self.mesh_for(&draw.object);
+            bounds.push(mesh.bounds);
+            counts.push(mesh.count);
+        }
+        let meshes = occlusion::Meshes {
+            bounds: &bounds,
+            counts: &counts,
+        };
         let visibility_started = std::time::Instant::now();
         let mut visible = std::mem::take(&mut self.frame_scratch.visible);
         self.visibility(scene, &draws, &bounds, &mut visible);
         let mut frustum_visible = std::mem::take(&mut self.frame_scratch.frustum);
         frustum_visible.clear();
         frustum_visible.extend_from_slice(&visible);
-        self.apply_cached_instance_occlusion(gpu, &draws, view_projection, size, &mut visible);
+        self.apply_cached_instance_occlusion(
+            gpu,
+            &draws,
+            meshes,
+            view_projection,
+            size,
+            &mut visible,
+        );
         self.stats.visibility_ms = visibility_started.elapsed().as_secs_f64() * 1000.;
         self.light_selection.update(&scene.lights);
         self.stats.scene_items = scene.items.len();
@@ -2382,6 +2497,7 @@ impl SceneRenderer {
             view_projection,
             size,
             &draws,
+            meshes,
             &frustum_visible,
             &batches,
         );
@@ -2789,16 +2905,25 @@ impl SceneRenderer {
             * u64::from(size[1]);
         let mut pass_stats = FrameStats::default();
         let mut submission = std::mem::take(&mut self.submission);
-        let submission_candidate = !has_particles
-            && occlusion != occlusion::Mode::Indirect
-            && submission.candidate(batches.len(), self.instancing.arena_enabled());
+        // Live particles interleave with transparent surfaces in a later pass.
+        // This pass skips those batches; the rest keep their order and can
+        // still be retained or drawn indirectly.
+        let interleaved =
+            |batch: &instancing::Batch| has_particles && draws[batch.indices[0]].transparent;
+        let submission_candidate = occlusion != occlusion::Mode::Indirect
+            && submission.candidate(
+                batches.iter().filter(|batch| !interleaved(batch)).count(),
+                self.instancing.arena_enabled(),
+            );
         {
             let records: Vec<_> = if submission_candidate {
                 batches
                     .iter()
                     .enumerate()
-                    .filter(|(index, _)| {
-                        occlusion != occlusion::Mode::Cached || self.occlusion.batch_visible(*index)
+                    .filter(|(index, batch)| {
+                        (occlusion != occlusion::Mode::Cached
+                            || self.occlusion.batch_visible(*index))
+                            && !interleaved(batch)
                     })
                     .map(|(_, batch)| {
                         let binding = match batch.slot {
@@ -2900,10 +3025,10 @@ impl SceneRenderer {
                     {
                         continue;
                     }
-                    let draw = &draws[batch.indices[0]];
-                    if has_particles && draw.transparent {
+                    if interleaved(batch) {
                         continue;
                     }
+                    let draw = &draws[batch.indices[0]];
                     let binding = match batch.slot {
                         Some(slot) => &self.instancing.bindings[slot].binding,
                         None => self.objects[batch.indices[0]].binding(),
@@ -3016,6 +3141,7 @@ impl SceneRenderer {
             MeshKind::Sprite(s) => s.screen.is_some(),
             _ => false,
         }) {
+            self.hud_idle_frames = 0;
             let mut hud = self
                 .hud
                 .take()
@@ -3035,8 +3161,13 @@ impl SceneRenderer {
             self.stats.hud_geometry_copies = hud.geometry_copies;
             self.hud = Some(hud);
             result?;
-        } else {
-            self.hud = None;
+        } else if let Some(hud) = &mut self.hud {
+            // Keep compiled UI pipelines briefly; release views and merged runs.
+            self.hud_idle_frames += 1;
+            hud.invalidate();
+            if self.hud_idle_frames > OVERLAY_IDLE_FRAMES {
+                self.hud = None;
+            }
         }
         self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
         let submit_started = std::time::Instant::now();
@@ -3096,11 +3227,12 @@ impl SceneRenderer {
             self.instancing.shadow_frame_batches = batches;
         }
         if self.state_caching && self.surface_preparation_caching {
-            self.surface_preparation.draws = draws;
+            self.surface_preparation.publish(draws);
         }
         let (stable, unchanged) = comparison.into_buffers();
         self.frame_scratch = frame_scratch::Scratch {
             bounds,
+            counts,
             visible,
             frustum: frustum_visible,
             items: visible_items,

@@ -17,6 +17,13 @@ impl Cache {
     pub fn invalidate(&mut self) {
         self.entries.clear();
     }
+    pub fn forget_texture(&mut self, retired: &impl Fn(&TextureKind) -> bool) {
+        for entry in &mut self.entries {
+            if entry.as_ref().is_some_and(|e| retired(&e.texture)) {
+                *entry = None;
+            }
+        }
+    }
     pub fn binding(&self, index: usize) -> Option<&wgpu::BindGroup> {
         self.entries.get(index)?.as_ref().map(|e| &e.binding)
     }

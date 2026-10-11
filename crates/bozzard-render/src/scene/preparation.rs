@@ -2,6 +2,20 @@
 use super::*;
 use std::{cmp::Ordering, mem, sync::Arc};
 
+/// What the last submitted frame did with some content.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Usage {
+    /// A source item or one of its surfaces referred to it: surface expansion
+    /// compares asset IDs, not contents.
+    pub drawn: bool,
+    /// A lit opaque surface referred to it. Casters write shadow depth, and
+    /// alpha-masked casters sample their texture while doing so.
+    pub cast: bool,
+    /// A lit surface referred to it. Lit transparent receivers write no depth
+    /// but bound the fitted sun box, so their geometry is a shadow input too.
+    pub lit: bool,
+}
+
 #[derive(Default)]
 pub(super) struct SurfacePreparation {
     pub draws: Vec<PreparedDraw>,
@@ -10,10 +24,46 @@ pub(super) struct SurfacePreparation {
     models_changed: Vec<bool>,
     membership_new: Vec<bool>,
     view_projection: Option<Mat4>,
+    /// `draws` are the last successfully submitted frame's surfaces.
+    published: bool,
 }
 impl SurfacePreparation {
     pub fn clear(&mut self) {
         *self = Self::default();
+    }
+    pub fn publish(&mut self, draws: Vec<PreparedDraw>) {
+        self.draws = draws;
+        self.published = true;
+    }
+    /// How the last submitted frame used some content: `item` matches source
+    /// items and `surface` their expanded surfaces. Unknown history reports
+    /// every use.
+    pub fn usage(
+        &self,
+        item: impl Fn(&DrawItem) -> bool,
+        surface: impl Fn(&PreparedDraw) -> bool,
+    ) -> Usage {
+        if !self.published {
+            return Usage {
+                drawn: true,
+                cast: true,
+                lit: true,
+            };
+        }
+        // An item naming a surface its model lacks expands to nothing, yet a
+        // replacement model can add that surface.
+        let mut usage = Usage {
+            drawn: self.sources.iter().any(item),
+            ..Default::default()
+        };
+        for draw in self.draws.iter().filter(|draw| surface(draw)) {
+            usage.drawn = true;
+            if draw.object.material.lit {
+                usage.lit = true;
+                usage.cast |= !draw.transparent;
+            }
+        }
+        usage
     }
     fn compact(&mut self) {
         compact(&mut self.sources);
@@ -303,6 +353,7 @@ impl SceneRenderer {
             return draws;
         }
         let mut cache = mem::take(&mut self.surface_preparation);
+        cache.published = false;
         let membership_changed = remap_sources(&mut cache, &scene.items);
         cache.changed.resize(scene.items.len(), false);
         cache.models_changed.resize(scene.items.len(), false);

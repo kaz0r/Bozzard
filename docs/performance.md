@@ -229,7 +229,8 @@ for individual runs, isolated inside/outside/near-plane workloads, and reproduct
 
 The factory's moving wind cubes now render over a copied depth layer for unchanged
 geometry. Reuse requires exact static caster state, fitted sun uniform bytes and
-target identity; asset publication and failed frames invalidate affected state.
+target identity. Failed frames invalidate affected state, as does replacing or evicting an
+asset that the last frame used as a shadow input.
 Smaller scenes retain full depth rendering. Local maps also avoid repeated scans
 when opaque inputs and their light projection/settings are unchanged.
 
@@ -273,7 +274,7 @@ and preliminary timing variation](batch-renderer-optimizations.md#retained-sun-f
 
 Direct comparison with the successful snapshot now supplies shadow-cache and
 static-membership decisions in one traversal. Unchanged rows keep their keys;
-changed scalar fields refresh after submission. Failure and asset-publication
+changed scalar fields refresh after submission. Failure and asset-retirement
 guards preserve complete revalidation.
 
 Three paired release runs of the same active-gust factory report medians of run medians:
@@ -376,6 +377,35 @@ proofs run in the ordinary suite: `occlusion_bound_prepass_*` (4,096 → 66 exac
 projections), `native_perspective_orbit_*` (10/10 plans reused), the 140k
 arena capacity check (137 instead of 2,188 draws), native shadow lists and
 `static_sun_certificate_reuses_beyond_16384_casters`.
+
+## Renderer caches across asset and text changes
+
+Publishing or evicting any asset, or showing and hiding text, used to drop nearly
+every renderer cache. It re-rendered shadow maps, reallocated per-surface uniform
+buffers, re-prepared every surface and recompiled the render bundle. Retirement now
+follows what the last successful frame drew. New IDs and unrelated assets no longer
+rebuild surface preparation, shadows or object bindings. The same pass covers:
+
+- mip chain submission;
+- TAA ping-pong bind groups;
+- the temporal frame signature;
+- opaque bundles while particles are live;
+- repeated mesh lookups.
+
+Seven interleaved release pairs ran on an RTX 3060 / Vulkan at 640×400 with 1,280
+surfaces. The table gives medians of the per-run medians:
+
+| Workload | Renderer CPU base → branch | Synchronized base → branch |
+| --- | ---: | ---: |
+| Unrelated image published each frame | 6.925 → 0.951 ms | 9.073 → 1.183 ms |
+| HUD label toggled each frame | 9.383 → 1.078 ms | 11.459 → 1.323 ms |
+| TAA, bloom, exposure, depth of field, 4,096 particles | 2.914 → 1.366 ms | 4.223 → 2.509 ms |
+| 512 live particles | 1.806 → 1.066 ms | 2.173 → 1.310 ms |
+| Sky behind a wall, no shadows | 0.940 → 0.790 ms | 1.185 → 1.007 ms |
+
+Every capture matches the original renderer byte for byte. See the
+[measurements, counters and caveats](measurements/renderer-caches.md) and the
+[invalidation rules](batch-renderer-optimizations.md#renderer-caches-across-asset-and-text-changes).
 
 ## Recorded Sponza measurements
 

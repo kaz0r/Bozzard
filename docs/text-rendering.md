@@ -27,7 +27,7 @@ No Mesh Renderer or Material is required. Text and mesh components can coexist i
 
 ## Runtime and persistence
 
-`TextRendering` is a normal, optional ECS component. Scene/prefab JSON preserves its settings; prefab instances have independent component values. Capture reads live text, while editor Stop discards Play changes and restores authored values. Destroyed/removed text releases its cached geometry; the atlas is released when a rendered view contains no text.
+`TextRendering` is a normal, optional ECS component. Scene/prefab JSON preserves its settings; prefab instances have independent component values. Capture reads live text, while editor Stop discards Play changes and restores authored values. Destroyed/removed text releases its cached geometry. The atlas and text renderer are released after 60 consecutive rendered frames without text, so labels that briefly disappear reuse them.
 
 Existing Blueprint Transform actions affect text. **Set Visible** hides both text and mesh on the target, not descendants. **Set Color** updates text RGB while preserving opacity, and also updates a mesh/Material if attached. **Text**, **Number to Text**, **Join Text**, **Get Text**, and **Set Text** nodes support dynamic labels. Number to Text takes a decimal count from 0 to 6; text values and computed results are bounded to 4096 UTF-8 bytes. Invalid output reports a simulation error without replacing the target label. Variables remain numeric.
 

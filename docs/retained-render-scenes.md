@@ -52,8 +52,10 @@ The renderer compares static mesh/material keys exactly, expands only changed
 source items and refreshes model matrices, skin deformation and projected depth
 separately. Matrix operations retain their original order. Transparent draws
 resort when depth changes; explicit source/surface tie breakers preserve the
-original stable order after previous camera sorts. Asset publication and failed
-draws discard retained preparation so retry fully validates current resources.
+original stable order after previous camera sorts. Failed draws discard retained
+preparation so retry fully validates current resources. Replacing or evicting an
+asset discards it only when the last successful frame drew that asset; this includes
+an item that names a model surface the model lacks. A new asset ID keeps it.
 
 ## Diagnostics and reference paths
 

@@ -95,6 +95,9 @@ pub(super) struct Arena {
     ids_changed: Vec<bool>,
 }
 impl Arena {
+    pub(super) fn forget_texture(&mut self, retired: &impl Fn(&TextureKind) -> bool) {
+        self.textures.retain(|texture, _| !retired(texture));
+    }
     fn assign_identities(
         &mut self,
         identities: impl Iterator<Item = Option<preparation::SurfaceIdentity>> + Clone,
@@ -328,7 +331,7 @@ pub(super) fn prepare(
     arena.ids_changed.resize(required_ids, false);
     if arena.textures.len() > bindings.len() + 8 {
         let mut active: std::collections::HashSet<_> =
-            bindings.iter().map(|b| &b.texture).collect();
+            bindings.iter().filter_map(|b| b.texture.as_ref()).collect();
         active.extend(
             batches
                 .iter()
@@ -355,7 +358,7 @@ pub(super) fn prepare(
         if slot == bindings.len() {
             bindings.push(InstanceBinding {
                 buffer: objects.clone(),
-                texture: texture.clone(),
+                texture: Some(texture.clone()),
                 binding: binding.clone(),
                 bytes: Vec::new(),
                 revisions: Vec::new(),
@@ -375,8 +378,8 @@ pub(super) fn prepare(
         if value.binding != *binding {
             value.binding = binding.clone();
         }
-        if value.texture != *texture {
-            value.texture = texture.clone();
+        if value.texture.as_ref() != Some(texture) {
+            value.texture = Some(texture.clone());
         }
         value.first_instance = arena.starts[slot];
         batch.first_instance = arena.starts[slot];

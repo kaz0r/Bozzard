@@ -172,6 +172,10 @@ fn write_changed(
 }
 
 impl NativeShadows {
+    pub fn forget_texture(&mut self, retired: &impl Fn(&TextureKind) -> bool) {
+        self.bindings
+            .retain(|texture, _| !texture.as_ref().is_some_and(retired));
+    }
     pub fn invalidate(&mut self) {
         self.bindings.clear();
         self.revisions.clear();
