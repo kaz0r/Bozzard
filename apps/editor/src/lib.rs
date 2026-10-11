@@ -21,6 +21,7 @@ mod asset_browser;
 mod blueprint_debug;
 mod blueprints;
 mod cameras;
+mod capture;
 mod colliders;
 mod component_ui;
 mod compute_ui;
@@ -1985,6 +1986,8 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let mut hardware = false;
     let mut threaded_simulation = true;
     let mut render_interpolation = true;
+    let mut capture = capture::Options::default();
+    let mut capturing = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -2012,6 +2015,36 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
                     args.next().context("--smoke needs an output directory")?,
                 ))
             }
+            "--capture" => {
+                capturing = true;
+                capture.path =
+                    PathBuf::from(args.next().context("--capture needs an output file")?);
+            }
+            "--capture-size" => {
+                capture.size =
+                    capture::parse_size(&args.next().context("--capture-size needs WIDTHxHEIGHT")?)?
+            }
+            "--capture-frames" => {
+                capture.frames = args
+                    .next()
+                    .context("--capture-frames needs a count")?
+                    .parse()?
+            }
+            "--capture-scale" => {
+                capture.pixels_per_point = args
+                    .next()
+                    .context("--capture-scale needs a factor")?
+                    .parse()?
+            }
+            "--capture-show" => capture.show.extend(
+                args.next()
+                    .context("--capture-show needs a comma-separated pane list")?
+                    .split(',')
+                    .map(str::to_owned),
+            ),
+            "--capture-select" => {
+                capture.select = Some(args.next().context("--capture-select needs an object id")?)
+            }
             "--backend" => backend = args.next().context("--backend needs a value")?.parse()?,
             "--software" => software = true,
             "--hardware" => hardware = true,
@@ -2022,6 +2055,9 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
                 );
                 println!(
                     "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
+                );
+                println!(
+                    "--capture FILE.ppm paints the editor offscreen after --capture-frames N (default 90) and exits; --capture-size WxH, --capture-scale F, --capture-show debug,timeline,blueprints,…, --capture-select OBJECT."
                 );
                 println!(
                     "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nSteam-enabled builds: --join-lobby ID joins on the next Play; Stop leaves the lobby.\nNative scene editor. --project FILE opens a game project. Import assets, edit, Play/Stop, and File > Export game."
@@ -2043,6 +2079,10 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     ensure!(
         benchmark_frames.is_none() || smoke.is_none(),
         "benchmark and smoke are separate commands"
+    );
+    ensure!(
+        !capturing || (benchmark_frames.is_none() && smoke.is_none()),
+        "capture, benchmark and smoke are separate commands"
     );
     ensure!(
         source.is_none() || project.is_none(),
@@ -2103,6 +2143,51 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
         device: gpu.device,
         queue: gpu.queue,
     };
+    let passed = Arc::new(AtomicBool::new(false));
+    let result = passed.clone();
+    let is_smoke = smoke.is_some() || benchmark_frames.is_some();
+    let crash_notice = if is_smoke || capturing {
+        None
+    } else {
+        crash_reports::launch_notice()
+    };
+    let persistence_path = smoke.as_ref().map(|p| p.join("workspace"));
+    let persist_window = smoke.is_none();
+    let make = move |cc: &eframe::CreationContext<'_>| -> Result<App> {
+        let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
+        if let Some(frames) = benchmark_frames {
+            app.benchmark = Some(debug::Benchmark {
+                frames,
+                play: benchmark_play,
+                completed: 0,
+            });
+            app.debug.recording = true;
+        }
+        app.threaded_simulation = threaded_simulation;
+        app.render_interpolation = render_interpolation;
+        #[cfg(feature = "factory")]
+        {
+            app.factory_mode = factory_mode;
+        }
+        #[cfg(not(feature = "factory"))]
+        let _ = factory_mode;
+        app.pending_lobby = join_lobby;
+        app.join_lobby = join_lobby.map(|id| id.to_string()).unwrap_or_default();
+        if let Some(notice) = crash_notice {
+            app.status = notice.lines().next().unwrap_or_default().to_owned();
+            app.debug.console.push(
+                bozzard_diagnostics::Level::Warning,
+                "Crash reports",
+                &notice,
+                bozzard_diagnostics::Location::default(),
+                None,
+            );
+        }
+        Ok(app)
+    };
+    if capturing {
+        return capture::run(&capture, existing, make);
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1400.0, 900.0])
@@ -2113,53 +2198,14 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
             ..Default::default()
         },
         // eframe chooses the platform application-data directory for normal launches.
-        persistence_path: smoke.as_ref().map(|p| p.join("workspace")),
-        persist_window: smoke.is_none(),
+        persistence_path,
+        persist_window,
         ..Default::default()
-    };
-    let passed = Arc::new(AtomicBool::new(false));
-    let result = passed.clone();
-    let is_smoke = smoke.is_some() || benchmark_frames.is_some();
-    let crash_notice = if is_smoke {
-        None
-    } else {
-        crash_reports::launch_notice()
     };
     eframe::run_native(
         "Bozzard Editor",
         options,
-        Box::new(move |cc| {
-            let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
-            if let Some(frames) = benchmark_frames {
-                app.benchmark = Some(debug::Benchmark {
-                    frames,
-                    play: benchmark_play,
-                    completed: 0,
-                });
-                app.debug.recording = true;
-            }
-            app.threaded_simulation = threaded_simulation;
-            app.render_interpolation = render_interpolation;
-            #[cfg(feature = "factory")]
-            {
-                app.factory_mode = factory_mode;
-            }
-            #[cfg(not(feature = "factory"))]
-            let _ = factory_mode;
-            app.pending_lobby = join_lobby;
-            app.join_lobby = join_lobby.map(|id| id.to_string()).unwrap_or_default();
-            if let Some(notice) = crash_notice {
-                app.status = notice.lines().next().unwrap_or_default().to_owned();
-                app.debug.console.push(
-                    bozzard_diagnostics::Level::Warning,
-                    "Crash reports",
-                    &notice,
-                    bozzard_diagnostics::Location::default(),
-                    None,
-                );
-            }
-            Ok(Box::new(app))
-        }),
+        Box::new(move |cc| Ok(Box::new(make(cc)?))),
     )
     .map_err(|e| anyhow::anyhow!("editor: {e}"))?;
     ensure!(
