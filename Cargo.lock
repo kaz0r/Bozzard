@@ -736,6 +736,7 @@ dependencies = [
  "bozzard-scene",
  "glam 0.33.6",
  "pollster 0.4.0",
+ "serde",
  "serde_json",
  "winit",
 ]

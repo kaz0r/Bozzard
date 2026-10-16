@@ -450,6 +450,18 @@ pub struct AddContext<'a> {
 }
 
 impl AddContext<'_> {
+    /// Default sphere for a new shape collider: it fits the selected mesh's largest extent
+    /// when its bounds are known.
+    pub fn shape_collider(&self) -> ShapeCollider {
+        self.bounds.map_or_else(ShapeCollider::default, |bounds| {
+            let size = Vec3::from(bounds[1]) - Vec3::from(bounds[0]);
+            ShapeCollider {
+                radius: (size.max_element() * 0.5).max(0.001),
+                height: size.y.max(0.001),
+                ..Default::default()
+            }
+        })
+    }
     /// Default box for a new collider, sized to the selected mesh when its bounds are known.
     pub fn collider(&self) -> BoxCollider {
         self.bounds.map_or_else(BoxCollider::default, |bounds| {
@@ -714,6 +726,73 @@ impl Component for BoxCollider {
     }
 }
 
+// ---------------------------------------------------------------- Shape collider
+
+fn has_shape_axis(object: &Object) -> bool {
+    object
+        .shape_collider
+        .is_some_and(|collider| collider.shape != ColliderShape::Sphere)
+}
+impl Component for ShapeCollider {
+    const NAME: &'static str = "shape_collider";
+    const LABEL: &'static str = "Shape Collider";
+    const UI: Ui = Ui::Generic;
+    const HELP: &'static str = "Sphere, capsule or cylinder. Rigidbodies roll and tip on the exact shape; queries and box movers see a close faceted copy.";
+    fn fields() -> &'static [Field] {
+        use Field as F;
+        const FIELDS: &[Field] = &[
+            F::bool("enabled", "Enabled"),
+            F::options("shape", "Shape", COLLIDER_SHAPES),
+            F::vector("center", "Center", VectorRole::Offset, 0.05),
+            F::min("radius", "Radius", 0.01, 0.0001),
+            F::min("height", "Height", 0.05, 0.0001)
+                .help("Full length along Axis, rounded caps included.")
+                .shown_when(has_shape_axis),
+            F::options("axis", "Axis", COLLIDER_AXES).shown_when(has_shape_axis),
+            F::flags("layers", "Layers", LAYER_NAMES),
+            F::flags("mask", "Collides with", LAYER_NAMES).help(
+                "Two colliders meet only when each one's Layers intersect the other's Collides with.",
+            ),
+        ];
+        FIELDS
+    }
+    fn field(&self, key: &str) -> Option<FieldValue> {
+        Some(match key {
+            "enabled" => FieldValue::Bool(self.enabled),
+            "shape" => FieldValue::Index(self.shape as usize),
+            "center" => FieldValue::Vector(self.center),
+            "radius" => FieldValue::Number(self.radius),
+            "height" => FieldValue::Number(self.height),
+            "axis" => FieldValue::Index(self.axis.index()),
+            "layers" => FieldValue::Flags(self.layers),
+            "mask" => FieldValue::Flags(self.mask),
+            _ => return None,
+        })
+    }
+    fn set_field(&mut self, key: &str, value: FieldValue) -> Result<()> {
+        match key {
+            "enabled" => self.enabled = value.bool()?,
+            "shape" => {
+                self.shape = *ColliderShape::ALL
+                    .get(value.index()?)
+                    .context("no such collider shape")?
+            }
+            "center" => self.center = value.vector()?,
+            "radius" => self.radius = value.number()?,
+            "height" => self.height = value.number()?,
+            "axis" => {
+                self.axis = *ColliderAxis::ALL
+                    .get(value.index()?)
+                    .context("no such collider axis")?
+            }
+            "layers" => self.layers = value.flags()?,
+            "mask" => self.mask = value.flags()?,
+            other => anyhow::bail!("Shape Collider has no field '{other}'"),
+        }
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------- Mesh collider
 
 impl Component for MeshCollider {
@@ -837,6 +916,7 @@ pub fn eligible_follow_camera(object: &Object) -> bool {
         && object.gravity.is_none()
         && object.collider.is_none()
         && object.mesh_collider.is_none()
+        && object.shape_collider.is_none()
         && object.trigger.is_none()
         && object.player_controller.is_none()
         && matches!(object.camera, Some(Camera::Perspective { .. }))
@@ -973,6 +1053,7 @@ fn joint_from_index(index: usize) -> Result<JointKind> {
 pub fn joint_endpoint(object: &Object) -> bool {
     object.collider.is_some_and(|c| c.enabled)
         || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+        || object.shape_collider.is_some_and(|c| c.enabled)
         || object.gravity.is_some()
 }
 fn joint_has_axis(object: &Object) -> bool {
@@ -1799,6 +1880,7 @@ pub const COMPONENTS: &[ComponentType] = &[
         mesh_collider,
         |object| object.drawable.is_some()
             && object.mesh_collider.is_none()
+            && object.shape_collider.is_none()
             && object.player_controller.is_none()
             && object.trigger.is_none(),
         |object, context| {
@@ -1823,7 +1905,8 @@ pub const COMPONENTS: &[ComponentType] = &[
         collider,
         |object| object.collider.is_none()
             && object.trigger.is_none()
-            && object.mesh_collider.is_none(),
+            && object.mesh_collider.is_none()
+            && object.shape_collider.is_none(),
         |object, context| {
             object.collider = Some(context.collider());
             Ok(())
@@ -1835,13 +1918,30 @@ pub const COMPONENTS: &[ComponentType] = &[
         }
     ),
     component_row!(
+        ShapeCollider,
+        shape_collider,
+        |object| object.shape_collider.is_none()
+            && object.collider.is_none()
+            && object.mesh_collider.is_none()
+            && object.trigger.is_none()
+            && object.player_controller.is_none(),
+        |object, context| {
+            object.shape_collider = Some(context.shape_collider());
+            Ok(())
+        },
+        |object, _scene| {
+            object.shape_collider = None;
+            object.gravity = None;
+        }
+    ),
+    component_row!(
         Gravity,
         gravity,
         |object| object.gravity.is_none() && object.trigger.is_none(),
         |object, context| {
             if let Some(mesh) = &object.mesh_collider {
                 mesh.mesh.convex_hull()?;
-            } else {
+            } else if object.shape_collider.is_none() {
                 object.collider.get_or_insert_with(|| context.collider());
             }
             object.gravity = Some(Gravity::default());
@@ -1857,6 +1957,7 @@ pub const COMPONENTS: &[ComponentType] = &[
         player_controller,
         |object| object.player_controller.is_none()
             && object.mesh_collider.is_none()
+            && object.shape_collider.is_none()
             && object.trigger.is_none()
             && object.parent.is_none()
             && object.spin.is_none(),
@@ -1885,7 +1986,8 @@ pub const COMPONENTS: &[ComponentType] = &[
         |object| object.trigger.is_none()
             && object.collider.is_none()
             && object.gravity.is_none()
-            && object.mesh_collider.is_none(),
+            && object.mesh_collider.is_none()
+            && object.shape_collider.is_none(),
         |object, _context| {
             object.trigger = Some(Trigger {
                 action: TriggerAction::Sensor,
@@ -2249,6 +2351,7 @@ mod tests {
                 "material",
                 "mesh_collider",
                 "collider",
+                "shape_collider",
                 "gravity",
                 "player_controller",
                 "trigger",
@@ -2353,6 +2456,7 @@ mod tests {
                 "drawable",
                 "material",
                 "collider",
+                "shape_collider",
                 "gravity",
                 "player_controller",
                 "light",

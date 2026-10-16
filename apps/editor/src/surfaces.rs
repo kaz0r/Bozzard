@@ -208,7 +208,7 @@ impl App {
                 let mut value = original.clone();
                 let has_saved = saved.iter().any(|v| v.surface as usize == index);
                 ui.push_id(index, |ui| {
-                    egui::CollapsingHeader::new("TRANSFORM")
+                    egui::CollapsingHeader::new("Transform")
                         .default_open(true)
                         .show(ui, |ui| {
                             inspector::vector(ui, "Offset", &mut value.transform.translation, 0.05);

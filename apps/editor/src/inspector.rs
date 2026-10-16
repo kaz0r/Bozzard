@@ -45,16 +45,17 @@ impl App {
         if self.loading.is_some() {
             ui.disable();
         }
-        theme::panel_title(ui, "Properties");
         if self.hierarchy_state.selection_count() > 1 && self.editor.selected_surface().is_none() {
             self.multi_inspector(ui);
             return;
         }
-        self.prefab_inspector(ui);
         let Some(original) = self.editor.selected_object().cloned() else {
-            ui.add_space(16.0);
-            ui.weak("No entity selected");
-            ui.small("Select in the viewport or Scene Hierarchy to inspect components.");
+            theme::empty_state(
+                ui,
+                icons::ADS_CLICK,
+                "Nothing selected",
+                "Select an object in the viewport or the hierarchy to inspect it.",
+            );
             return;
         };
         let mut object = original.clone();
@@ -68,44 +69,40 @@ impl App {
         ui.push_id(&original.id, |ui| {
         egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
                     if self.surface_inspector(ui) { return; }
+                    let has_children = scene.objects.iter().any(|o| o.parent.as_deref() == Some(&object.id));
+                    ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                        entity_header(ui, &mut object, &scene, has_children);
+                    });
+                    self.prefab_inspector(ui);
+                    ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                        let mut reset = false;
+                        theme::Foldout::new(icons::OPEN_WITH, "Transform")
+                            .default_open(true)
+                            .show_with_actions(
+                            ui,
+                            |ui| {
+                                reset = ui
+                                    .add(egui::Button::new(egui::RichText::new(icons::RESTART_ALT).color(theme::TEXT_MUTED)).frame_when_inactive(false))
+                                    .on_hover_text("Reset transform")
+                                    .clicked();
+                            },
+                            |ui| {
+                                vector(ui, "Position", &mut object.transform.translation, 0.05);
+                                vector(ui, "Rotation °", &mut object.transform.rotation_degrees, 0.5);
+                                vector(ui, "Scale", &mut object.transform.scale, 0.02);
+                            },
+                        );
+                        if reset {
+                            object.transform = Transform::default();
+                        }
+                    });
                     if !object.blueprints.is_empty() {
                         self.blueprint_inspector(ui, &mut object);
                     }
                     self.script_manager_inspector(ui, &mut object);
                     self.shader_graph_inspector(ui, &mut object);
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-                        ui.add(egui::TextEdit::singleline(&mut object.name).desired_width(f32::INFINITY))
-                            .on_hover_text(format!("Entity name · ID: {}", object.id));
-                        ui.small("Parent");
-                        egui::ComboBox::from_id_salt("parent")
-                            .selected_text(object.parent.as_deref().unwrap_or("Root"))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut object.parent, None, "Root");
-                                for candidate in &scene.objects {
-                                    if candidate.id != object.id {
-                                        ui.selectable_value(
-                                            &mut object.parent,
-                                            Some(candidate.id.clone()),
-                                            &candidate.name,
-                                        );
-                                    }
-                                }
-                            });
-                        ui.separator();
                         generate_lods = self.lod_tools.ui(ui, &object, &self.editor.assets);
-                        egui::CollapsingHeader::new("TRANSFORM").default_open(true).show(ui, |ui| {
-                        vector(ui, "Position", &mut object.transform.translation, 0.05);
-                        vector(
-                            ui,
-                            "Rotation °",
-                            &mut object.transform.rotation_degrees,
-                            0.5,
-                        );
-                        vector(ui, "Scale", &mut object.transform.scale, 0.02);
-                        if ui.small_button("Reset transform").clicked() {
-                            object.transform = Transform::default();
-                        }
-                        });
                         // Every registered component with generic field metadata draws itself.
                         for entry in bozzard_scene::components()
                             .filter(|entry| entry.ui == bozzard_scene::Ui::Generic || self.custom_inspectors.contains(entry.name))
@@ -199,6 +196,11 @@ impl App {
                     .app
                     .world
                     .get::<bozzard_scene::MeshCollider>(entity)
+                    .is_some_and(|c| c.enabled)
+                || play
+                    .app
+                    .world
+                    .get::<bozzard_scene::ShapeCollider>(entity)
                     .is_some_and(|c| c.enabled))
         {
             ui.weak(if state.grounded {
@@ -260,7 +262,7 @@ impl App {
         let mut fit_gi = false;
         let gi_current = self.editor.gi_current();
         ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-            egui::CollapsingHeader::new("GAME FLOW").show(ui, |ui| {
+            crate::theme::Foldout::new(crate::icons::FLAG, "Game flow").show(ui, |ui| {
                 let mut enabled = scene.game_flow.is_some();
                 if ui.checkbox(&mut enabled, "Start, pause and retry menus").changed() {
                     scene.game_flow = enabled.then(|| bozzard_scene::GameFlowSettings { title: scene.name.clone(), ..Default::default() });
@@ -271,7 +273,7 @@ impl App {
                     ui.small("Enter starts · Escape pauses · R retries · Q quits. Use End Game in a Blueprint to show the retry menu.");
                 }
             });
-            egui::CollapsingHeader::new("GLOBAL ILLUMINATION")
+            crate::theme::Foldout::new(crate::icons::FLARE, "Global illumination")
                 .open(if self.smoke_prefab_frame.is_some() {
                     Some(false)
                 } else {
@@ -290,7 +292,7 @@ impl App {
                 });
             ui.separator();
             let light = &mut scene.lighting;
-            egui::CollapsingHeader::new("DIRECTIONAL LIGHT")
+            crate::theme::Foldout::new(crate::icons::WB_SUNNY, "Directional light")
                 .default_open(true)
                 .show(ui, |ui| {
                     let direction = Vec3::from(light.sun_direction).normalize();
@@ -368,7 +370,7 @@ impl App {
                     }
                 });
             ui.separator();
-            egui::CollapsingHeader::new("ENVIRONMENT")
+            crate::theme::Foldout::new(crate::icons::CLOUD, "Environment")
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.add(
@@ -457,28 +459,91 @@ fn component_section(
     remove: &mut Option<String>,
     contents: impl FnOnce(&mut egui::Ui),
 ) {
-    egui::collapsing_header::CollapsingState::load_with_default_open(
-        ui.ctx(),
-        ui.make_persistent_id(name),
-        true,
-    )
-    .show_header(ui, |ui| {
-        ui.strong(name);
-        let hint = match bozzard_scene::component_type_by_label(name).map(|entry| entry.name) {
+    let registry = bozzard_scene::component_type_by_label(name).map(|entry| entry.name);
+    let icon = theme::component_icon(registry.unwrap_or_default());
+    theme::Foldout::new(icon, name).default_open(true).show_with_actions(ui, |ui| {
+        let hint = match registry {
             Some("collider") => {
                 "Remove collider and dependent Rigidbody / Player Controller (Undo restores them)"
             }
             Some("gravity") => {
                 "Remove Rigidbody and dependent Player Controller (Undo restores them)"
             }
+            Some("shape_collider") => {
+                "Remove collider and dependent Rigidbody (Undo restores them)"
+            }
             Some("camera") => "Remove camera (reassign a player follow-camera first)",
             _ => "Remove component (Undo restores it)",
         };
-        if ui.small_button("×").on_hover_text(hint).clicked() {
+        let button = egui::Button::new(egui::RichText::new(icons::CLOSE).color(theme::TEXT_MUTED))
+            .frame_when_inactive(false);
+        if ui.add(button).on_hover_text(hint).clicked() {
             *remove = Some(name.to_string());
         }
-    })
-    .body(contents);
+    }, contents);
+}
+
+/// The object's identity at the top of the inspector: kind icon, name, parent and ID.
+fn entity_header(
+    ui: &mut egui::Ui,
+    object: &mut bozzard_scene::Object,
+    scene: &bozzard_scene::Scene,
+    has_children: bool,
+) {
+    let (icon, tint) = theme::object_icon(object, has_children);
+    egui::Frame::new()
+        .fill(theme::RAISED)
+        .stroke(egui::Stroke::new(1.0, theme::BORDER))
+        .corner_radius(theme::RADIUS)
+        .inner_margin(egui::Margin::same(8))
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(icon).size(20.0).color(tint));
+                ui.add(
+                    egui::TextEdit::singleline(&mut object.name)
+                        .font(theme::bold(ui.ctx(), 13.5))
+                        .desired_width(f32::INFINITY),
+                )
+                .on_hover_text("Object name");
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Parent").color(theme::TEXT_MUTED));
+                egui::ComboBox::from_id_salt("parent")
+                    .selected_text(
+                        object
+                            .parent
+                            .as_ref()
+                            .and_then(|id| scene.objects.iter().find(|o| &o.id == id))
+                            .map_or("Root", |parent| parent.name.as_str()),
+                    )
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut object.parent, None, "Root");
+                        for candidate in &scene.objects {
+                            if candidate.id != object.id {
+                                ui.selectable_value(
+                                    &mut object.parent,
+                                    Some(candidate.id.clone()),
+                                    &candidate.name,
+                                );
+                            }
+                        }
+                    });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&object.id)
+                                .monospace()
+                                .size(10.5)
+                                .color(theme::TEXT_MUTED),
+                        )
+                        .truncate(),
+                    )
+                    .on_hover_text(format!("Object ID · {}", object.id));
+                });
+            });
+        });
+    ui.add_space(6.0);
 }
 
 fn remove_component(
@@ -582,24 +647,60 @@ pub(super) fn texture_control(
 
 pub(super) fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
     ui.push_id(label, |ui| {
-        ui.label(label);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            let width = ((ui.available_width() - 12.0) / 3.0 - 18.0).max(24.0);
+        // Side by side when the panel is wide; label above the fields when it is narrow.
+        let inline = ui.available_width() >= 300.0;
+        let mut fields = |ui: &mut egui::Ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            let width = ((ui.available_width() - 6.0) / 3.0).max(36.0);
             for (index, v) in value.iter_mut().enumerate() {
-                ui.label(
-                    egui::RichText::new([" X ", " Y ", " Z "][index])
-                        .background_color(theme::AXES[index])
-                        .color(Color32::WHITE),
-                );
-                ui.add_sized(
-                    [width, 20.0],
+                axis_field(
+                    ui,
+                    index,
+                    width,
                     egui::DragValue::new(v).speed(speed).max_decimals(3),
                 )
                 .on_hover_text(format!("{label} · {}", ["X", "Y", "Z"][index]));
             }
-        });
+        };
+        let name = egui::Label::new(egui::RichText::new(label).color(theme::TEXT_DIM)).truncate();
+        if inline {
+            ui.horizontal(|ui| {
+                ui.add_sized([62.0, 22.0], name);
+                fields(ui);
+            });
+        } else {
+            ui.add(name);
+            ui.horizontal(fields);
+        }
     });
+}
+
+/// One axis of a vector: a sunken field with the axis color down its left edge.
+pub(super) fn axis_field(
+    ui: &mut egui::Ui,
+    axis: usize,
+    width: f32,
+    drag: egui::DragValue<'_>,
+) -> egui::Response {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 22.0), Sense::hover());
+    ui.painter().rect_filled(rect, 4, theme::SUNKEN);
+    ui.painter().rect_filled(
+        egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
+        egui::CornerRadius {
+            nw: 4,
+            sw: 4,
+            ne: 0,
+            se: 0,
+        },
+        theme::AXES[axis],
+    );
+    let mut field =
+        ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink2(egui::vec2(4.0, 0.0))));
+    let widgets = &mut field.visuals_mut().widgets;
+    widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+    widgets.inactive.bg_stroke = egui::Stroke::NONE;
+    widgets.hovered.weak_bg_fill = theme::glass(8);
+    field.add_sized([rect.width() - 8.0, 22.0], drag)
 }
 
 // Both camera widgets publish the active view and controller reference in one transaction.

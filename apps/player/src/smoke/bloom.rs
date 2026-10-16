@@ -8,6 +8,8 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
+        trails: Vec::new(),
+        decals: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),

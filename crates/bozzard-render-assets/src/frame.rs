@@ -776,6 +776,38 @@ fn frame_settings<D>(
     Ok(RenderScene {
         skin_poses: crate::skin_poses(&view.skin_poses),
         particles: crate::particle_frame(&view.particles),
+        trails: view
+            .trails
+            .iter()
+            .map(|ribbon| bozzard_render::TrailRibbon {
+                additive: ribbon.additive,
+                points: ribbon
+                    .points
+                    .iter()
+                    .map(|point| bozzard_render::TrailPoint {
+                        position: point.position,
+                        width: point.width,
+                        color: point.color,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        decals: if layer == Layer::ThreeD {
+            view.decals
+                .iter()
+                .map(|decal| bozzard_render::DecalItem {
+                    volume: decal.volume,
+                    texture: decal.image.as_deref().map_or(TextureKind::White, |id| {
+                        TextureKind::Imported(assets.canonical_asset_id(id).to_owned())
+                    }),
+                    color: decal.color,
+                    min_facing: decal.min_facing,
+                    lit: decal.lit,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
         fog: bozzard_render::FogSettings {
             enabled: layer == Layer::ThreeD && view.fog.enabled,
             color: view.fog.color,

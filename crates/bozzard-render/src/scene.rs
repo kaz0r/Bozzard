@@ -8,6 +8,10 @@ pub use temporal_settings::{MotionBlur, ScreenSpaceReflections, TemporalAntiAlia
 pub(crate) mod geometry;
 mod gpu_util;
 mod particles;
+mod trails;
+pub use trails::{TrailPoint, TrailRibbon};
+mod decals;
+pub use decals::{DecalItem, MAX_DECALS};
 mod skinning;
 pub use skinning::{SkinData, SkinPose};
 mod reflections;
@@ -185,6 +189,10 @@ pub struct DrawItem {
 pub struct RenderScene {
     pub skin_poses: BTreeMap<u64, SkinPose>,
     pub particles: Vec<Particle>,
+    /// Trail Renderer ribbons, unlit, drawn after transparent surfaces and particles.
+    pub trails: Vec<TrailRibbon>,
+    /// Images projected onto the opaque scene, drawn before transparent surfaces.
+    pub decals: Vec<DecalItem>,
     pub fog: FogSettings,
     pub gi: Option<IrradianceVolume>,
     pub lights: Vec<LocalLight>,
@@ -366,6 +374,9 @@ pub struct SceneRenderer {
     geometry: Option<geometry::GeometryBuffers>,
     motion_history: geometry::MotionHistory,
     particles: Option<particles::Particles>,
+    trails: Option<trails::Trails>,
+    decals: Option<decals::Decals>,
+    trail_scratch: Vec<f32>,
     text: Option<text::TextRenderer>,
     text_idle_frames: u32,
     world_text: text::WorldCache,
@@ -922,6 +933,9 @@ impl SceneRenderer {
             geometry: None,
             motion_history: Default::default(),
             particles: None,
+            trails: None,
+            decals: None,
+            trail_scratch: Vec::new(),
             text: None,
             text_idle_frames: 0,
             world_text: Default::default(),
@@ -2811,7 +2825,11 @@ impl SceneRenderer {
             }
         }
         let has_particles = !raw && !scene.particles.is_empty();
-        let transparent: Vec<usize> = if has_particles {
+        let has_decals = !raw && !scene.decals.is_empty();
+        // Particles and decals both draw between the opaque scene and transparent surfaces,
+        // so transparent surfaces move into a later pass of their own.
+        let separate_transparent = has_particles || has_decals;
+        let transparent: Vec<usize> = if separate_transparent {
             draws
                 .iter()
                 .zip(&visible)
@@ -2848,6 +2866,54 @@ impl SceneRenderer {
                 self.stats.particle_compute_dispatches,
                 self.stats.particle_descriptor_bytes,
             ) = particles.work();
+        }
+        if has_decals || self.decals.as_ref().is_some_and(|d| d.has_decals()) {
+            let mut decals = self
+                .decals
+                .take()
+                .unwrap_or_else(|| decals::Decals::new(gpu, &self.shadows.sample_layout));
+            // A decal whose image is still uploading waits; the rest of the frame does not.
+            let drawn: Vec<_> = if has_decals {
+                scene.decals.as_slice()
+            } else {
+                &[]
+            }
+            .iter()
+            .filter_map(|decal| {
+                let view = self.texture_view(&decal.texture).ok()?;
+                let image = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("decal image"),
+                    layout: &decals.image_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&decals.sampler),
+                        },
+                    ],
+                });
+                Some((decal, image))
+            })
+            .collect();
+            self.stats.decals = drawn.len();
+            let prepared = decals.prepare(
+                gpu,
+                &drawn,
+                &self.frame_buffer,
+                &self.depth.as_ref().unwrap().view,
+            );
+            self.decals = Some(decals);
+            prepared?;
+        }
+        // Raw diagnostics bypass trails as they bypass particles.
+        let ribbons: &[TrailRibbon] = if raw { &[] } else { &scene.trails };
+        if !ribbons.is_empty() || self.trails.as_ref().is_some_and(|t| t.has_geometry()) {
+            let trails = self.trails.get_or_insert_with(|| trails::Trails::new(gpu));
+            self.stats.trail_triangles =
+                trails.prepare(gpu, ribbons, view_projection, &mut self.trail_scratch)?;
         }
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
         let encode_started = std::time::Instant::now();
@@ -2909,7 +2975,7 @@ impl SceneRenderer {
         // This pass skips those batches; the rest keep their order and can
         // still be retained or drawn indirectly.
         let interleaved =
-            |batch: &instancing::Batch| has_particles && draws[batch.indices[0]].transparent;
+            |batch: &instancing::Batch| separate_transparent && draws[batch.indices[0]].transparent;
         let submission_candidate = occlusion != occlusion::Mode::Indirect
             && submission.candidate(
                 batches.iter().filter(|batch| !interleaved(batch)).count(),
@@ -3072,7 +3138,24 @@ impl SceneRenderer {
         self.stats.multi_draw_indirect_runs = pass_stats.multi_draw_indirect_runs;
         self.stats.multi_draw_indirect_draws = pass_stats.multi_draw_indirect_draws;
         self.stats.multi_draw_indirect_bytes = pass_stats.multi_draw_indirect_bytes;
-        if has_particles {
+        if let Some(decals) = self.decals.as_ref().filter(|d| d.has_decals()) {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("projected decals"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: self.display.hdr(),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..Default::default()
+            });
+            decals.draw(&mut pass, &self.shadows.sample_binding);
+        }
+        if separate_transparent {
             let load = |view, store| {
                 Some(wgpu::RenderPassColorAttachment {
                     view,
@@ -3104,9 +3187,11 @@ impl SceneRenderer {
                 }),
                 ..Default::default()
             });
-            let particles = self.particles.as_ref().unwrap();
+            let particles = self.particles.as_ref().filter(|_| has_particles);
             for (bucket, &index) in transparent.iter().enumerate() {
-                particles.draw_bucket(&mut pass, &self.shadows.sample_binding, bucket as u32);
+                if let Some(particles) = particles {
+                    particles.draw_bucket(&mut pass, &self.shadows.sample_binding, bucket as u32);
+                }
                 let (triangles, binds) = self.draw_prepared(
                     &mut pass,
                     &draws[index],
@@ -3123,11 +3208,34 @@ impl SceneRenderer {
                 self.stats.color_triangles += triangles;
                 self.stats.pipeline_binds += binds;
             }
-            particles.draw_bucket(
-                &mut pass,
-                &self.shadows.sample_binding,
-                transparent.len() as u32,
-            );
+            if let Some(particles) = particles {
+                particles.draw_bucket(
+                    &mut pass,
+                    &self.shadows.sample_binding,
+                    transparent.len() as u32,
+                );
+            }
+        }
+        if let Some(trails) = self.trails.as_ref().filter(|t| t.has_geometry()) {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("trail ribbons"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: self.display.hdr(),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth.as_ref().unwrap().view,
+                    depth_ops: None,
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            trails.draw(&mut pass);
         }
         self.display.draw(
             &mut encoder,

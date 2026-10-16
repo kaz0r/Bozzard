@@ -71,7 +71,7 @@ impl App {
         ui: &mut egui::Ui,
         object: &mut bozzard_scene::Object,
     ) {
-        egui::CollapsingHeader::new("SHADER GRAPH")
+        crate::theme::Foldout::new(crate::icons::HUB, "Shader graph")
             .id_salt((&object.id, "shader-graph"))
             .default_open(object.shader_graph.is_some())
             .show(ui, |ui| {
@@ -336,6 +336,8 @@ impl App {
             skin_poses: Default::default(),
             shader_time: self.preview_time,
             particles: Vec::new(),
+            trails: Vec::new(),
+            decals: Vec::new(),
             view_projection: lens * glam::camera::rh::view::look_at_mat4(eye, Vec3::ZERO, Vec3::Y),
             items: vec![bozzard_render::DrawItem {
                 motion_id: 0,

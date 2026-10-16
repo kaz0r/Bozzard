@@ -45,6 +45,8 @@ pub fn fixture() -> RenderScene {
         skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
+        trails: Vec::new(),
+        decals: Vec::new(),
         items,
         lights,
         view_projection: glam::camera::rh::proj::directx::orthographic(

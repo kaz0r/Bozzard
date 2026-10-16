@@ -36,6 +36,11 @@ impl Default for Options {
             capture: None,
             capture_ticks: 60,
             capture_size: [1280, 720],
+            record: None,
+            record_frames: 90,
+            record_fps: 30,
+            record_camera: None,
+            record_ui: false,
         }
     }
 }
@@ -171,6 +176,31 @@ pub(crate) fn options() -> Result<Option<Options>> {
                     "--capture-size must be 1..8192 pixels per side"
                 );
             }
+            "--record" => {
+                result.record = Some(
+                    args.next()
+                        .context("--record needs an output directory")?
+                        .into(),
+                )
+            }
+            "--record-frames" => {
+                result.record_frames = args
+                    .next()
+                    .context("--record-frames needs a count")?
+                    .parse()?;
+                ensure!(result.record_frames > 0, "--record-frames must be positive");
+            }
+            "--record-fps" => {
+                result.record_fps = args.next().context("--record-fps needs a rate")?.parse()?
+            }
+            "--record-camera" => {
+                result.record_camera = Some(
+                    args.next()
+                        .context("--record-camera needs a camera path file")?
+                        .into(),
+                )
+            }
+            "--record-ui" => result.record_ui = true,
             "--inject-device-recreation" => result.inject_device_recreation = true,
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
@@ -182,7 +212,7 @@ pub(crate) fn options() -> Result<Option<Options>> {
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game from a manifest or .bpack file. Exported games find gamepack.bpack beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--settings FILE reads and saves player settings there instead of the per-user location; --frames and --verify-* runs otherwise use defaults.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
-                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--capture FILE.ppm [--capture-ticks N] [--capture-size WxH] runs N ticks (default 60) and writes one offscreen frame (default 1280x720) without a window.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\nWithout gameplay logic: 1/2 switch views, Space pauses, arrows pan, F5 saves, R reloads, Escape closes.\nScript and Blueprint scenes own their keys; F5 saves and F6 reloads.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--capture FILE.ppm [--capture-ticks N] [--capture-size WxH] runs N ticks (default 60) and writes one offscreen frame (default 1280x720) without a window.\n--record DIR [--record-frames N] [--record-fps F] [--record-camera PATH.json] [--record-ui] writes N frames (default 90 at 30 fps) as DIR/frame_00000.ppm after --capture-ticks warmup, at --capture-size; the camera path flies the view.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\nWithout gameplay logic: 1/2 switch views, Space pauses, arrows pan, F5 saves, R reloads, Escape closes.\nScript and Blueprint scenes own their keys; F5 saves and F6 reloads.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -196,6 +226,11 @@ pub(crate) fn options() -> Result<Option<Options>> {
     ensure!(
         result.capture.is_none() || (!result.smoke && result.frames.is_none()),
         "--capture renders offscreen; it cannot be combined with --smoke or --frames"
+    );
+    ensure!(
+        result.record.is_none()
+            || (result.capture.is_none() && !result.smoke && result.frames.is_none()),
+        "--record renders offscreen; it cannot be combined with --capture, --smoke or --frames"
     );
     ensure!(
         !(result.smoke && result.frames.is_some()),

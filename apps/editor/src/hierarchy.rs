@@ -9,42 +9,32 @@ pub(super) fn visibility_eye(ui: &mut egui::Ui, visible: bool) -> egui::Response
     const HIT_SIZE: f32 = 24.0;
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(HIT_SIZE, HIT_SIZE), egui::Sense::click());
-    let color = if ui.is_enabled() && visible {
-        ui.visuals().text_color()
+    let hovered = response.hovered() && ui.is_enabled();
+    // Quiet while everything is visible; hidden objects and the hovered eye stand out.
+    let color = if !ui.is_enabled() {
+        crate::theme::BORDER_STRONG
+    } else if hovered {
+        crate::theme::TEXT
+    } else if visible {
+        crate::theme::TEXT_MUTED
     } else {
-        ui.visuals().weak_text_color()
+        crate::theme::AMBER
     };
     let painter = ui.painter();
-    if response.hovered() && ui.is_enabled() {
-        painter.rect_filled(rect, 3.0, ui.visuals().widgets.hovered.bg_fill);
+    if hovered {
+        painter.rect_filled(rect, 4.0, crate::theme::HOVER);
     }
-    let center = rect.center();
-    let point = |x: f32, y: f32| center + egui::vec2(x, y);
-    let stroke = egui::Stroke::new(1.25, color);
-    painter.add(egui::Shape::line(
-        vec![
-            point(-7.0, 0.0),
-            point(-3.5, -3.5),
-            point(0.0, -4.5),
-            point(3.5, -3.5),
-            point(7.0, 0.0),
-        ],
-        stroke,
-    ));
-    painter.add(egui::Shape::line(
-        vec![
-            point(-7.0, 0.0),
-            point(-3.5, 3.5),
-            point(0.0, 4.5),
-            point(3.5, 3.5),
-            point(7.0, 0.0),
-        ],
-        stroke,
-    ));
-    painter.circle_stroke(center, 2.2, stroke);
-    if !visible {
-        painter.line_segment([point(-6.0, 5.5), point(6.0, -5.5)], stroke);
-    }
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        if visible {
+            crate::icons::VISIBILITY
+        } else {
+            crate::icons::VISIBILITY_OFF
+        },
+        egui::FontId::proportional(13.0),
+        color,
+    );
     response
 }
 

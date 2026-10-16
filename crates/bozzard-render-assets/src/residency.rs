@@ -518,6 +518,11 @@ fn required_asset_names(scene: &bozzard_render::RenderScene) -> BTreeSet<&str> {
             }
         }
     }
+    for decal in &scene.decals {
+        if let TextureKind::Imported(id) = &decal.texture {
+            ids.insert(id.as_str());
+        }
+    }
     // Repeated instances share IDs: allocate each name once per frame.
     ids
 }

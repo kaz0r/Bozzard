@@ -36,9 +36,21 @@ pub fn extract_frame(
     layer: Layer,
     aspect: f32,
 ) -> Result<RenderFrame> {
+    extract_frame_from(demo, assets, cache, layer, aspect, None)
+}
+
+/// As `extract_frame`, seen from `pose` (a camera world matrix) instead of the view camera.
+pub fn extract_frame_from(
+    demo: &SceneRuntime,
+    assets: &bozzard_assets::AssetStore,
+    cache: &RenderSceneCache,
+    layer: Layer,
+    aspect: f32,
+    pose: Option<glam::Mat4>,
+) -> Result<RenderFrame> {
     demo.check_simulation()?;
     if cache.enabled() {
-        let view = demo.render_view_shared(layer, aspect, None)?;
+        let view = demo.render_view_shared(layer, aspect, pose)?;
         let gi = bozzard_render_assets::irradiance_volume(
             demo.instance(),
             &demo.app.world,
@@ -48,7 +60,7 @@ pub fn extract_frame(
         )?;
         cache.extract(view, assets, layer, gi)
     } else {
-        let view = demo.render_view(layer, aspect, None)?;
+        let view = demo.render_view(layer, aspect, pose)?;
         let gi = bozzard_render_assets::irradiance_volume(
             demo.instance(),
             &demo.app.world,

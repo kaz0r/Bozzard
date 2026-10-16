@@ -54,6 +54,8 @@ impl Fixture<'_> {
             skin_poses: Default::default(),
             shader_time: 0.,
             particles: Vec::new(),
+            trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: self.lights.clone(),

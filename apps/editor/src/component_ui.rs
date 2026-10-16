@@ -340,20 +340,15 @@ fn vector_row(
 ) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
+        ui.spacing_mut().item_spacing.x = 3.0;
         let count = value.len() as f32;
-        let width = ((ui.available_width() - 12.0) / count - 18.0).max(24.0);
+        let width = ((ui.available_width() - 3.0 * (count - 1.0)) / count).max(36.0);
         for (index, axis) in value.iter_mut().enumerate() {
-            ui.label(
-                egui::RichText::new([" X ", " Y ", " Z "][index])
-                    .background_color(theme::AXES[index])
-                    .color(Color32::WHITE),
-            );
             let mut drag = egui::DragValue::new(axis).speed(speed).max_decimals(3);
             if let Some(min) = min {
                 drag = drag.range(min..=max.unwrap_or(f32::MAX));
             }
-            if ui.add_sized([width, 20.0], drag).changed() {
+            if crate::inspector::axis_field(ui, index, width, drag).changed() {
                 changed = true;
             }
         }

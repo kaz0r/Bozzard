@@ -91,8 +91,9 @@ mod gravity;
 mod joint;
 mod physics;
 pub use collision::{
-    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, Contact, DEFAULT_LAYERS,
-    DEFAULT_MASK, LAYER_NAMES, MeshCollider, MoveResult, QueryHit, TriangleMesh, layers_interact,
+    BoxCollider, COLLIDER_AXES, COLLIDER_SHAPES, ColliderAxis, ColliderShape, CollisionBox,
+    CollisionMesh, CollisionSnapshot, Contact, DEFAULT_LAYERS, DEFAULT_MASK, LAYER_NAMES,
+    MeshCollider, MoveResult, QueryHit, ShapeCollider, TriangleMesh, layers_interact,
 };
 pub use gameplay::{
     CursorCapture, GameplayInput, GameplayState, PlayerController, PlayerMotion, Trigger,
@@ -475,6 +476,8 @@ pub struct Object {
     pub lod: Option<Lod>,
     pub collider: Option<BoxCollider>,
     pub mesh_collider: Option<MeshCollider>,
+    /// Sphere, capsule or cylinder; exclusive with the box and mesh colliders.
+    pub shape_collider: Option<ShapeCollider>,
     pub gravity: Option<Gravity>,
     pub player_controller: Option<PlayerController>,
     pub trigger: Option<Trigger>,
@@ -724,7 +727,10 @@ impl Scene {
         // children. Presence is enough here: a disabled collider is a paused body, not a typo.
         let mut bodies_with_shapes = BTreeSet::new();
         for object in &self.objects {
-            if object.collider.is_none() && object.mesh_collider.is_none() {
+            if object.collider.is_none()
+                && object.mesh_collider.is_none()
+                && object.shape_collider.is_none()
+            {
                 continue;
             }
             bodies_with_shapes.insert(body_root(self, &ids, &object.id).to_owned());
@@ -783,6 +789,17 @@ impl Scene {
                         && object.player_controller.is_none()
                         && object.trigger.is_none(),
                     "Mesh Collider cannot also have Box Collider, Player Controller or Trigger on '{}'",
+                    object.id
+                );
+            }
+            if let Some(collider) = object.shape_collider {
+                collider.validate()?;
+                ensure!(
+                    object.collider.is_none()
+                        && object.mesh_collider.is_none()
+                        && object.player_controller.is_none()
+                        && object.trigger.is_none(),
+                    "Shape Collider cannot also have Box or Mesh Collider, Player Controller or Trigger on '{}'",
                     object.id
                 );
             }
@@ -985,6 +1002,7 @@ impl Scene {
             let global = parent * object.transform.matrix();
             if object.collider.is_some_and(|c| c.enabled)
                 || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+                || object.shape_collider.is_some_and(|c| c.enabled)
             {
                 let mut ancestor = object.parent.as_deref();
                 while let Some(id) = ancestor {
@@ -1015,6 +1033,9 @@ impl Scene {
                 if object.gravity.is_some_and(|g| g.enabled) {
                     collider.mesh.convex_hull()?;
                 }
+            }
+            if let Some(collider) = object.shape_collider {
+                collider.geometry(global)?;
             }
             if object.gravity.is_some_and(|g| g.enabled) && object.player_controller.is_none() {
                 physics::parent_pose(parent)
@@ -1115,6 +1136,7 @@ impl Scene {
                 .flat_map(|o| o.parent.iter().flat_map(|p| [p.clone(), o.id.clone()]))
                 .collect(),
             particle_state: Default::default(),
+            trail_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
             lighting_override: None,
@@ -1145,6 +1167,7 @@ pub struct SceneInstance {
     instance_id: u64,
     additive_scenes: BTreeMap<String, scene_loading::LoadedScene>,
     particle_state: particles::ParticleSystem,
+    trail_state: middleware::trail::TrailSystem,
     display_time: f32,
     display_overrides: display::DisplayOverrides,
     lighting_override: Option<Lighting>,
@@ -1234,6 +1257,7 @@ impl SceneInstance {
     /// on the next step.
     pub fn adopt_effects(&mut self, previous: &mut SceneInstance) {
         self.particle_state = std::mem::take(&mut previous.particle_state);
+        self.trail_state = std::mem::take(&mut previous.trail_state);
         self.display_time = previous.display_time;
     }
     /// The matrices of `global_transforms`, in `document()` object order and without
@@ -1702,6 +1726,24 @@ impl SceneInstance {
                 } else {
                     Vec::new()
                 },
+                trails: if layer == Layer::ThreeD {
+                    self.trail_state.frame(|id| {
+                        let entity = self.entities.get(id)?;
+                        Some(matrices[*self.object_indices.get(entity)?])
+                    })
+                } else {
+                    Vec::new()
+                },
+                decals: if layer == Layer::ThreeD {
+                    world
+                        .query::<middleware::decal::Decal>()
+                        .filter_map(|(entity, decal)| {
+                            decal.view(matrices[*self.object_indices.get(&entity)?])
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
                 fog: self.fog_override.unwrap_or(self.document.fog),
                 lights,
                 environment: self
@@ -1742,6 +1784,7 @@ impl SceneInstance {
             object.lod = world.get::<Lod>(entity).cloned();
             object.collider = world.get::<BoxCollider>(entity).copied();
             object.mesh_collider = world.get::<MeshCollider>(entity).cloned();
+            object.shape_collider = world.get::<ShapeCollider>(entity).copied();
             object.gravity = world.get::<Gravity>(entity).copied();
             object.player_controller = world.get::<PlayerController>(entity).cloned();
             object.trigger = world.get::<Trigger>(entity).cloned();
@@ -1769,6 +1812,10 @@ pub struct RenderView<D> {
     pub shader_graphs: Vec<Option<std::sync::Arc<shader_graph::ShaderGraph>>>,
     pub material_instances: Vec<Option<std::sync::Arc<material_asset::MaterialInstance>>>,
     pub particles: Vec<Particle>,
+    /// Trail Renderer ribbons, oldest point first, with the current position as the head.
+    pub trails: Vec<middleware::trail::TrailRibbon>,
+    /// Decal volumes with their images, in no particular order.
+    pub decals: Vec<middleware::decal::DecalView>,
     pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
     /// Immutable text descriptors used by retained extraction. Owned extraction
@@ -1799,6 +1846,7 @@ impl Object {
             gravity,
             collider,
             mesh_collider,
+            shape_collider,
             player_controller,
             trigger,
             joint,
@@ -2080,6 +2128,7 @@ mod tests {
             lod: None,
             collider: None,
             mesh_collider: None,
+            shape_collider: None,
             text_rendering: None,
             gravity: None,
             player_controller: None,

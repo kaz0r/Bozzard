@@ -154,7 +154,7 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | Gameplay | [Blueprints](docs/blueprints.md) · [Blueprint authoring depth](docs/blueprint-depth.md) · [Rhai scripting](docs/scripting.md) · [Game flow](docs/game-flow.md) |
 | Assets | [Importing and editing](docs/assets.md) · [Prefabs](docs/prefabs.md) · [Texture compression](docs/texture-compression.md) · [LOD](docs/lod.md) |
 | Rendering | [Materials](docs/materials.md) · [Lighting and baked GI](docs/lighting.md) · [Shader editor](docs/shader-editor.md) · [Occlusion](docs/occlusion.md) |
-| Effects | [Atmosphere](docs/atmosphere-effects.md) · [Post-processing](docs/post-processing.md) · [Camera effects](docs/camera-effects.md) · [Fog](docs/fog.md) · [Volumetrics](docs/volumetrics.md) |
+| Effects | [Atmosphere](docs/atmosphere-effects.md) · [Post-processing](docs/post-processing.md) · [Camera effects](docs/camera-effects.md) · [Fog](docs/fog.md) · [Volumetrics](docs/volumetrics.md) · [Trail Renderer](docs/trails.md) · [Decals](docs/decals.md) |
 | Physics | [Physics surface](docs/physics.md) · [Mesh colliders and Rigidbody settings](docs/mesh-colliders.md) |
 | UI and middleware | [Text and HUD rendering](docs/text-rendering.md) · [Character animation](docs/character-animation.md) · [Audio, animation, UI, navigation, and particles](docs/middleware.md) |
 | Compute and diagnostics | [WGSL compute](docs/compute.md) · [Debugging](docs/debugging.md) · [Performance](docs/performance.md) |

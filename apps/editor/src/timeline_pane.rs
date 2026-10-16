@@ -17,7 +17,6 @@ struct TimelineDrag {
 
 impl App {
     pub(super) fn timeline_pane(&mut self, ui: &mut egui::Ui) {
-        theme::panel_title(ui, "Timeline");
         let Some(object) = self.editor.selected_object().cloned() else {
             ui.weak("Select an object with a Timeline component.");
             return;

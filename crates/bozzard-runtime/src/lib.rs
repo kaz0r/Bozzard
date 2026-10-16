@@ -904,7 +904,9 @@ impl SceneRuntime {
                         && bozzard_scene::game_flow::simulation_running(world)
                     {
                         measure(world, "Particles", |world| {
-                            gravity_instance.step_particles(world, dt)
+                            gravity_instance
+                                .step_particles(world, dt)
+                                .and_then(|()| gravity_instance.step_trails(world, dt))
                         })
                     } else {
                         Ok(())
